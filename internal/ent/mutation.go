@@ -3508,9 +3508,22 @@ func (m *AgentHostMutation) OldSSHPrivateKey(ctx context.Context) (v string, err
 	return oldValue.SSHPrivateKey, nil
 }
 
+// ClearSSHPrivateKey clears the value of the "ssh_private_key" field.
+func (m *AgentHostMutation) ClearSSHPrivateKey() {
+	m.ssh_private_key = nil
+	m.clearedFields[agenthost.FieldSSHPrivateKey] = struct{}{}
+}
+
+// SSHPrivateKeyCleared returns if the "ssh_private_key" field was cleared in this mutation.
+func (m *AgentHostMutation) SSHPrivateKeyCleared() bool {
+	_, ok := m.clearedFields[agenthost.FieldSSHPrivateKey]
+	return ok
+}
+
 // ResetSSHPrivateKey resets all changes to the "ssh_private_key" field.
 func (m *AgentHostMutation) ResetSSHPrivateKey() {
 	m.ssh_private_key = nil
+	delete(m.clearedFields, agenthost.FieldSSHPrivateKey)
 }
 
 // AddInstanceIDs adds the "instances" edge to the AgentInstance entity by ids.
@@ -3826,7 +3839,11 @@ func (m *AgentHostMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *AgentHostMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(agenthost.FieldSSHPrivateKey) {
+		fields = append(fields, agenthost.FieldSSHPrivateKey)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -3839,6 +3856,11 @@ func (m *AgentHostMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *AgentHostMutation) ClearField(name string) error {
+	switch name {
+	case agenthost.FieldSSHPrivateKey:
+		m.ClearSSHPrivateKey()
+		return nil
+	}
 	return fmt.Errorf("unknown AgentHost nullable field %s", name)
 }
 

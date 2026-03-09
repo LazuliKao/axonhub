@@ -590,6 +590,16 @@ func SSHPrivateKeyHasSuffix(v string) predicate.AgentHost {
 	return predicate.AgentHost(sql.FieldHasSuffix(FieldSSHPrivateKey, v))
 }
 
+// SSHPrivateKeyIsNil applies the IsNil predicate on the "ssh_private_key" field.
+func SSHPrivateKeyIsNil() predicate.AgentHost {
+	return predicate.AgentHost(sql.FieldIsNull(FieldSSHPrivateKey))
+}
+
+// SSHPrivateKeyNotNil applies the NotNil predicate on the "ssh_private_key" field.
+func SSHPrivateKeyNotNil() predicate.AgentHost {
+	return predicate.AgentHost(sql.FieldNotNull(FieldSSHPrivateKey))
+}
+
 // SSHPrivateKeyEqualFold applies the EqualFold predicate on the "ssh_private_key" field.
 func SSHPrivateKeyEqualFold(v string) predicate.AgentHost {
 	return predicate.AgentHost(sql.FieldEqualFold(FieldSSHPrivateKey, v))

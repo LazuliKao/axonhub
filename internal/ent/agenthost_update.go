@@ -169,6 +169,12 @@ func (_u *AgentHostUpdate) SetNillableSSHPrivateKey(v *string) *AgentHostUpdate 
 	return _u
 }
 
+// ClearSSHPrivateKey clears the value of the "ssh_private_key" field.
+func (_u *AgentHostUpdate) ClearSSHPrivateKey() *AgentHostUpdate {
+	_u.mutation.ClearSSHPrivateKey()
+	return _u
+}
+
 // AddInstanceIDs adds the "instances" edge to the AgentInstance entity by IDs.
 func (_u *AgentHostUpdate) AddInstanceIDs(ids ...int) *AgentHostUpdate {
 	_u.mutation.AddInstanceIDs(ids...)
@@ -322,6 +328,9 @@ func (_u *AgentHostUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.SSHPrivateKey(); ok {
 		_spec.SetField(agenthost.FieldSSHPrivateKey, field.TypeString, value)
+	}
+	if _u.mutation.SSHPrivateKeyCleared() {
+		_spec.ClearField(agenthost.FieldSSHPrivateKey, field.TypeString)
 	}
 	if _u.mutation.InstancesCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -529,6 +538,12 @@ func (_u *AgentHostUpdateOne) SetNillableSSHPrivateKey(v *string) *AgentHostUpda
 	return _u
 }
 
+// ClearSSHPrivateKey clears the value of the "ssh_private_key" field.
+func (_u *AgentHostUpdateOne) ClearSSHPrivateKey() *AgentHostUpdateOne {
+	_u.mutation.ClearSSHPrivateKey()
+	return _u
+}
+
 // AddInstanceIDs adds the "instances" edge to the AgentInstance entity by IDs.
 func (_u *AgentHostUpdateOne) AddInstanceIDs(ids ...int) *AgentHostUpdateOne {
 	_u.mutation.AddInstanceIDs(ids...)
@@ -712,6 +727,9 @@ func (_u *AgentHostUpdateOne) sqlSave(ctx context.Context) (_node *AgentHost, er
 	}
 	if value, ok := _u.mutation.SSHPrivateKey(); ok {
 		_spec.SetField(agenthost.FieldSSHPrivateKey, field.TypeString, value)
+	}
+	if _u.mutation.SSHPrivateKeyCleared() {
+		_spec.ClearField(agenthost.FieldSSHPrivateKey, field.TypeString)
 	}
 	if _u.mutation.InstancesCleared() {
 		edge := &sqlgraph.EdgeSpec{

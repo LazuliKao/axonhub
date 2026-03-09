@@ -102,8 +102,6 @@ var (
 	DefaultUser string
 	// DefaultPassword holds the default value on creation for the "password" field.
 	DefaultPassword string
-	// DefaultSSHPrivateKey holds the default value on creation for the "ssh_private_key" field.
-	DefaultSSHPrivateKey string
 )
 
 // Type defines the type for the "type" enum field.

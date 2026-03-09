@@ -263,10 +263,6 @@ func (_c *AgentHostCreate) defaults() error {
 		v := agenthost.DefaultPassword
 		_c.mutation.SetPassword(v)
 	}
-	if _, ok := _c.mutation.SSHPrivateKey(); !ok {
-		v := agenthost.DefaultSSHPrivateKey
-		_c.mutation.SetSSHPrivateKey(v)
-	}
 	return nil
 }
 
@@ -316,9 +312,6 @@ func (_c *AgentHostCreate) check() error {
 	}
 	if _, ok := _c.mutation.Password(); !ok {
 		return &ValidationError{Name: "password", err: errors.New(`ent: missing required field "AgentHost.password"`)}
-	}
-	if _, ok := _c.mutation.SSHPrivateKey(); !ok {
-		return &ValidationError{Name: "ssh_private_key", err: errors.New(`ent: missing required field "AgentHost.ssh_private_key"`)}
 	}
 	return nil
 }
@@ -585,6 +578,12 @@ func (u *AgentHostUpsert) UpdateSSHPrivateKey() *AgentHostUpsert {
 	return u
 }
 
+// ClearSSHPrivateKey clears the value of the "ssh_private_key" field.
+func (u *AgentHostUpsert) ClearSSHPrivateKey() *AgentHostUpsert {
+	u.SetNull(agenthost.FieldSSHPrivateKey)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -774,6 +773,13 @@ func (u *AgentHostUpsertOne) SetSSHPrivateKey(v string) *AgentHostUpsertOne {
 func (u *AgentHostUpsertOne) UpdateSSHPrivateKey() *AgentHostUpsertOne {
 	return u.Update(func(s *AgentHostUpsert) {
 		s.UpdateSSHPrivateKey()
+	})
+}
+
+// ClearSSHPrivateKey clears the value of the "ssh_private_key" field.
+func (u *AgentHostUpsertOne) ClearSSHPrivateKey() *AgentHostUpsertOne {
+	return u.Update(func(s *AgentHostUpsert) {
+		s.ClearSSHPrivateKey()
 	})
 }
 
@@ -1132,6 +1138,13 @@ func (u *AgentHostUpsertBulk) SetSSHPrivateKey(v string) *AgentHostUpsertBulk {
 func (u *AgentHostUpsertBulk) UpdateSSHPrivateKey() *AgentHostUpsertBulk {
 	return u.Update(func(s *AgentHostUpsert) {
 		s.UpdateSSHPrivateKey()
+	})
+}
+
+// ClearSSHPrivateKey clears the value of the "ssh_private_key" field.
+func (u *AgentHostUpsertBulk) ClearSSHPrivateKey() *AgentHostUpsertBulk {
+	return u.Update(func(s *AgentHostUpsert) {
+		s.ClearSSHPrivateKey()
 	})
 }
 

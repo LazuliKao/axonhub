@@ -9768,6 +9768,7 @@ input UpdateAgentHostInput {
   SSH private key for authentication
   """
   sshPrivateKey: String
+  clearSSHPrivateKey: Boolean
 }
 """
 UpdateAgentInstanceInput is used for update AgentInstance object.

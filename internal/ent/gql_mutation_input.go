@@ -133,14 +133,15 @@ func (c *AgentHostCreate) SetInput(i CreateAgentHostInput) *AgentHostCreate {
 
 // UpdateAgentHostInput represents a mutation input for updating agenthosts.
 type UpdateAgentHostInput struct {
-	Name          *string
-	Type          *agenthost.Type
-	Status        *agenthost.Status
-	Addr          *string
-	User          *string
-	AuthMethod    *agenthost.AuthMethod
-	Password      *string
-	SSHPrivateKey *string
+	Name               *string
+	Type               *agenthost.Type
+	Status             *agenthost.Status
+	Addr               *string
+	User               *string
+	AuthMethod         *agenthost.AuthMethod
+	Password           *string
+	ClearSSHPrivateKey bool
+	SSHPrivateKey      *string
 }
 
 // Mutate applies the UpdateAgentHostInput on the AgentHostMutation builder.
@@ -165,6 +166,9 @@ func (i *UpdateAgentHostInput) Mutate(m *AgentHostMutation) {
 	}
 	if v := i.Password; v != nil {
 		m.SetPassword(*v)
+	}
+	if i.ClearSSHPrivateKey {
+		m.ClearSSHPrivateKey()
 	}
 	if v := i.SSHPrivateKey; v != nil {
 		m.SetSSHPrivateKey(*v)

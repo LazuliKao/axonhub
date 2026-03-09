@@ -61,7 +61,7 @@ func (AgentHost) Fields() []ent.Field {
 			Sensitive().
 			Comment("Host password for authentication"),
 		field.String("ssh_private_key").
-			Default("").
+			Optional().
 			SchemaType(map[string]string{
 				dialect.MySQL: "text",
 			}).

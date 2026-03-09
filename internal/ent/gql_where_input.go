@@ -1274,6 +1274,8 @@ type AgentHostWhereInput struct {
 	SSHPrivateKeyContains     *string  `json:"sshPrivateKeyContains,omitempty"`
 	SSHPrivateKeyHasPrefix    *string  `json:"sshPrivateKeyHasPrefix,omitempty"`
 	SSHPrivateKeyHasSuffix    *string  `json:"sshPrivateKeyHasSuffix,omitempty"`
+	SSHPrivateKeyIsNil        bool     `json:"sshPrivateKeyIsNil,omitempty"`
+	SSHPrivateKeyNotNil       bool     `json:"sshPrivateKeyNotNil,omitempty"`
 	SSHPrivateKeyEqualFold    *string  `json:"sshPrivateKeyEqualFold,omitempty"`
 	SSHPrivateKeyContainsFold *string  `json:"sshPrivateKeyContainsFold,omitempty"`
 
@@ -1649,6 +1651,12 @@ func (i *AgentHostWhereInput) P() (predicate.AgentHost, error) {
 	}
 	if i.SSHPrivateKeyHasSuffix != nil {
 		predicates = append(predicates, agenthost.SSHPrivateKeyHasSuffix(*i.SSHPrivateKeyHasSuffix))
+	}
+	if i.SSHPrivateKeyIsNil {
+		predicates = append(predicates, agenthost.SSHPrivateKeyIsNil())
+	}
+	if i.SSHPrivateKeyNotNil {
+		predicates = append(predicates, agenthost.SSHPrivateKeyNotNil())
 	}
 	if i.SSHPrivateKeyEqualFold != nil {
 		predicates = append(predicates, agenthost.SSHPrivateKeyEqualFold(*i.SSHPrivateKeyEqualFold))

@@ -123,7 +123,7 @@ var (
 		{Name: "user", Type: field.TypeString, Default: ""},
 		{Name: "auth_method", Type: field.TypeEnum, Enums: []string{"password", "ssh_key"}, Default: "password"},
 		{Name: "password", Type: field.TypeString, Default: ""},
-		{Name: "ssh_private_key", Type: field.TypeString, Default: "", SchemaType: map[string]string{"mysql": "text"}},
+		{Name: "ssh_private_key", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"mysql": "text"}},
 	}
 	// AgentHostsTable holds the schema information for the "agent_hosts" table.
 	AgentHostsTable = &schema.Table{

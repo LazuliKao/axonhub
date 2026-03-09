@@ -93752,7 +93752,7 @@ func (ec *executionContext) unmarshalInputUpdateAgentHostInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name", "type", "status", "addr", "user", "authMethod", "password", "sshPrivateKey"}
+	fieldsInOrder := [...]string{"name", "type", "status", "addr", "user", "authMethod", "password", "sshPrivateKey", "clearSSHPrivateKey"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -93815,6 +93815,13 @@ func (ec *executionContext) unmarshalInputUpdateAgentHostInput(ctx context.Conte
 				return it, err
 			}
 			it.SSHPrivateKey = data
+		case "clearSSHPrivateKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearSSHPrivateKey"))
+			data, err := ec.unmarshalOBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearSSHPrivateKey = data
 		}
 	}
 
