@@ -11,7 +11,7 @@ import (
 	"github.com/looplj/axonhub/cmd/axonclaw/bootstrap"
 )
 
-type ReloadTool struct {
+type ResetTool struct {
 	client    graphql.Client
 	agent     *agent.Agent
 	threadMgr *thread.Manager
@@ -21,7 +21,7 @@ type ReloadTool struct {
 	logger    interface{ Info(msg string, args ...any) }
 }
 
-type ReloadToolOptions struct {
+type ResetToolOptions struct {
 	Client    graphql.Client
 	Agent     *agent.Agent
 	ThreadMgr *thread.Manager
@@ -31,8 +31,8 @@ type ReloadToolOptions struct {
 	Logger    interface{ Info(msg string, args ...any) }
 }
 
-func NewReloadTool(opts ReloadToolOptions) *ReloadTool {
-	return &ReloadTool{
+func NewResetTool(opts ResetToolOptions) *ResetTool {
+	return &ResetTool{
 		client:    opts.Client,
 		agent:     opts.Agent,
 		threadMgr: opts.ThreadMgr,
@@ -43,35 +43,26 @@ func NewReloadTool(opts ReloadToolOptions) *ReloadTool {
 	}
 }
 
-func (t *ReloadTool) Definition() agent.ToolDefinition {
+func (t *ResetTool) Definition() agent.ToolDefinition {
 	return agent.ToolDefinition{
-		Name:        "Reload",
-		Description: "Reload bootstrap configuration and clear thread history. Use this when the user has modified prompts or configuration and wants to apply changes immediately without restarting the agent instance.",
+		Name:        "Reset",
+		Description: "Refresh bootstrap configuration and reset the agent context. This clears in-memory messages and deletes the persisted thread history, without restarting the agent instance.",
 		Parameters: jsonschema.Schema{
-			Schema: "https://json-schema.org/draft/2020-12/schema",
-			Type:   "object",
-			Properties: map[string]*jsonschema.Schema{
-				"clear_thread": {
-					Type:        "boolean",
-					Description: "Whether to clear the thread message history (default: true)",
-				},
-			},
+			Schema:               "https://json-schema.org/draft/2020-12/schema",
+			Type:                 "object",
+			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		},
 	}
 }
 
-type reloadInput struct {
-	ClearThread bool `json:"clear_thread"`
-}
-
-func (t *ReloadTool) Execute(ctx context.Context, input reloadInput) agent.ToolResult {
+func (t *ResetTool) Execute(ctx context.Context, _ map[string]any) agent.ToolResult {
 	newBoot, err := bootstrap.Do(ctx, t.client, bootstrap.SystemPromptData{
 		Workspace:  t.workspace,
 		SkillsRoot: t.boot.SkillsRoot,
 		ConfigDir:  t.boot.ConfigDir,
 	})
 	if err != nil {
-		return agent.ToolResult{Error: fmt.Errorf("reload bootstrap failed: %w", err)}
+		return agent.ToolResult{Error: fmt.Errorf("reset bootstrap failed: %w", err)}
 	}
 
 	t.boot.AgentID = newBoot.AgentID
@@ -96,24 +87,17 @@ func (t *ReloadTool) Execute(ctx context.Context, input reloadInput) agent.ToolR
 		return cfg
 	})
 
-	clearThread := input.ClearThread
-	if !clearThread {
-		clearThread = true
-	}
-
-	if clearThread {
-		t.agent.ClearMessages()
-		if t.threadMgr != nil && t.threadID != "" {
-			if err := t.threadMgr.Delete(t.threadID); err != nil {
-				if t.logger != nil {
-					t.logger.Info("reload: failed to delete thread", "error", err)
-				}
+	t.agent.ClearMessages()
+	if t.threadMgr != nil && t.threadID != "" {
+		if err := t.threadMgr.Delete(t.threadID); err != nil {
+			if t.logger != nil {
+				t.logger.Info("reset: failed to delete thread", "error", err)
 			}
 		}
 	}
 
-	result := fmt.Sprintf("Reload completed successfully.\n- Agent: %s (%s)\n- Model: %s\n- Thread cleared: %v",
-		t.boot.AgentName, t.boot.AgentID, t.boot.Model, clearThread)
+	result := fmt.Sprintf("Reset completed successfully.\n- Agent: %s (%s)\n- Model: %s\n- Thread cleared: %v",
+		t.boot.AgentName, t.boot.AgentID, t.boot.Model, true)
 
 	return agent.ToolResult{Content: agent.Content{Text: &result}}
 }

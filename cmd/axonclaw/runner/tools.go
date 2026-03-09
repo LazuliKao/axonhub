@@ -72,7 +72,7 @@ func registerTools(
 
 	a.RegisterTool(tools.NewAgentTool(NewSendMessageTool(client)))
 	a.RegisterTool(tools.NewAgentTool(NewAxonClawHelpTool()))
-	a.RegisterTool(tools.NewAgentTool(NewReloadTool(ReloadToolOptions{
+	a.RegisterTool(tools.NewAgentTool(NewResetTool(ResetToolOptions{
 		Client:    client,
 		Agent:     a,
 		ThreadMgr: threadMgr,
