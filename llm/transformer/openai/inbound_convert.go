@@ -123,12 +123,22 @@ func (r *Request) ToLLMRequest() *llm.Request {
 
 // ToLLMMessage converts OpenAI Message to unified llm.Message.
 func (m Message) ToLLMMessage() llm.Message {
+	reasoningContent := m.ReasoningContent
+	if m.Thinking != nil && *m.Thinking != "" {
+		if reasoningContent == nil {
+			reasoningContent = m.Thinking
+		} else {
+			combined := *reasoningContent + *m.Thinking
+			reasoningContent = &combined
+		}
+	}
+
 	msg := llm.Message{
 		Role:             m.Role,
 		Name:             m.Name,
 		Refusal:          m.Refusal,
 		ToolCallID:       m.ToolCallID,
-		ReasoningContent: m.ReasoningContent,
+		ReasoningContent: reasoningContent,
 	}
 
 	// Convert Content

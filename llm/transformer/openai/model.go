@@ -160,6 +160,9 @@ type Message struct {
 	// ReasoningContent for deepseek-reasoner support.
 	ReasoningContent *string `json:"reasoning_content,omitempty"`
 
+	// Thinking for Ollama support (equivalent to reasoning_content).
+	Thinking *string `json:"thinking,omitempty"`
+
 	// Annotations contains citation information for the message.
 	// This is used by providers like Perplexity to provide source URLs.
 	Annotations []Annotation `json:"annotations,omitempty"`

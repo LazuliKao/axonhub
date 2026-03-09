@@ -103,9 +103,11 @@ func AggregateStreamChunks(ctx context.Context, chunks []*httpclient.StreamEvent
 					choiceAgg.content.WriteString(*choice.Delta.Content.Content)
 				}
 
-				// Handle reasoning content
+				// Handle reasoning content (support both reasoning_content and thinking)
 				if choice.Delta.ReasoningContent != nil {
 					choiceAgg.reasoningContent.WriteString(*choice.Delta.ReasoningContent)
+				} else if choice.Delta.Thinking != nil {
+					choiceAgg.reasoningContent.WriteString(*choice.Delta.Thinking)
 				}
 
 				// Handle tool calls
