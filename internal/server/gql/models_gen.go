@@ -234,6 +234,14 @@ type ModelTokenUsageStats struct {
 	ReasoningTokens int    `json:"reasoningTokens"`
 }
 
+type OIDCIdentityInfo struct {
+	ID      objects.GUID `json:"id"`
+	IdpName string       `json:"idpName"`
+	Issuer  string       `json:"issuer"`
+	Subject string       `json:"subject"`
+	Email   string       `json:"email"`
+}
+
 type OnboardingInfo struct {
 	Onboarded          bool                          `json:"onboarded"`
 	CompletedAt        *time.Time                    `json:"completedAt,omitempty"`
@@ -391,6 +399,11 @@ type UpdateMeInput struct {
 	LastName       *string `json:"lastName,omitempty"`
 	PreferLanguage *string `json:"preferLanguage,omitempty"`
 	Avatar         *string `json:"avatar,omitempty"`
+}
+
+type UpdateMyPasswordInput struct {
+	OldPassword *string `json:"oldPassword,omitempty"`
+	NewPassword string  `json:"newPassword"`
 }
 
 type UpdateProjectUserInput struct {
