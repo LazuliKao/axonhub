@@ -209,6 +209,11 @@ func (processor *ChatCompletionOrchestrator) Process(ctx context.Context, reques
 		persistRequest(inbound),
 	)
 
+	// Add transform middlewares based on channel configuration
+	if state.CurrentCandidate != nil && state.CurrentCandidate.Channel != nil {
+		middlewares = append(middlewares, applyTransformMiddlewares(state.CurrentCandidate.Channel.Settings)...)
+	}
+
 	// Add outbound middlewares (executed after outbound.TransformRequest)
 	middlewares = append(middlewares,
 		applyOverrideRequestBody(outbound),

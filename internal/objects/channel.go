@@ -73,6 +73,18 @@ type TransformOptions struct {
 
 	// ReplaceDeveloperRoleWithSystem replaces developer role with system in messages for Bailian compatibility.
 	ReplaceDeveloperRoleWithSystem bool `json:"replaceDeveloperRoleWithSystem"`
+
+	// MergeAdjacentUserMessages merges adjacent user messages in the conversation.
+	// Default: true for Copilot channels, false otherwise.
+	MergeAdjacentUserMessages *bool `json:"mergeAdjacentUserMessages,omitempty"`
+
+	// MergeToolBlocks merges tool use blocks in responses.
+	// Default: true for Copilot channels, false otherwise.
+	MergeToolBlocks *bool `json:"mergeToolBlocks,omitempty"`
+
+	// TransformUserMessages controls whether to apply message transformations to user messages.
+	// Default: false.
+	TransformUserMessages *bool `json:"transformUserMessages,omitempty"`
 }
 
 type ChannelSettings struct {

@@ -7,6 +7,8 @@ import (
 
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/llm"
+	"github.com/looplj/axonhub/llm/pipeline"
+	"github.com/looplj/axonhub/llm/pipeline/transforms"
 )
 
 // applyTransformOptions applies channel transform options to create a new llm.Request.
@@ -64,4 +66,33 @@ func replaceDeveloperRoleWithSystem(messages []llm.Message) []llm.Message {
 	}
 
 	return result
+}
+
+// applyTransformMiddlewares returns transform middlewares based on channel config flags.
+// The middlewares are applied in order: mergeAdjacentUserMessages → mergeToolResultBlocks → transformUserToToolResponse.
+// Default values when flags are nil: all transforms are disabled (only enable when explicitly set to true).
+func applyTransformMiddlewares(channelSettings *objects.ChannelSettings) []pipeline.Middleware {
+	if channelSettings == nil {
+		return nil
+	}
+
+	opts := channelSettings.TransformOptions
+	var middlewares []pipeline.Middleware
+
+	// Merge adjacent user messages first (order matters)
+	if opts.MergeAdjacentUserMessages != nil && *opts.MergeAdjacentUserMessages {
+		middlewares = append(middlewares, transforms.NewMergeAdjacentUserMessagesMiddleware())
+	}
+
+	// Then merge tool result blocks
+	if opts.MergeToolBlocks != nil && *opts.MergeToolBlocks {
+		middlewares = append(middlewares, transforms.NewMergeToolResultBlocksMiddleware())
+	}
+
+	// Finally transform user messages to tool responses
+	if opts.TransformUserMessages != nil && *opts.TransformUserMessages {
+		middlewares = append(middlewares, transforms.NewTransformUserToToolResponseMiddleware())
+	}
+
+	return middlewares
 }
