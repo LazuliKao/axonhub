@@ -30,6 +30,7 @@ type InboundPersistentStream struct {
 	responseChunks []*httpclient.StreamEvent
 	closed         bool
 	state          *PersistenceState
+	previewKey     string // registry key for live preview, empty if preview disabled
 }
 
 var _ streams.Stream[*httpclient.StreamEvent] = (*InboundPersistentStream)(nil)
@@ -44,7 +45,7 @@ func NewInboundPersistentStream(
 	perf *biz.PerformanceRecord,
 	state *PersistenceState,
 ) *InboundPersistentStream {
-	return &InboundPersistentStream{
+	s := &InboundPersistentStream{
 		ctx:            ctx,
 		stream:         stream,
 		request:        request,
@@ -56,6 +57,14 @@ func NewInboundPersistentStream(
 		closed:         false,
 		state:          state,
 	}
+
+	// Register with preview registry for live chunk access
+	if state.EnablePreview && request != nil {
+		s.previewKey = biz.RequestKey(request.ID)
+		biz.DefaultStreamPreviewRegistry.Register(s.previewKey, &s.responseChunks)
+	}
+
+	return s
 }
 
 func (ts *InboundPersistentStream) Next() bool {
@@ -66,6 +75,9 @@ func (ts *InboundPersistentStream) Current() *httpclient.StreamEvent {
 	event := ts.stream.Current()
 	if event != nil {
 		ts.responseChunks = append(ts.responseChunks, event)
+		if ts.previewKey != "" {
+			biz.DefaultStreamPreviewRegistry.NotifyAppend(ts.previewKey)
+		}
 		if isTerminalStreamEvent(event) {
 			ts.state.StreamCompleted = true
 		}
@@ -96,6 +108,11 @@ func (ts *InboundPersistentStream) Close() error {
 
 	ts.closed = true
 	ctx := ts.ctx
+
+	// Unregister from preview registry on all exit paths
+	if ts.previewKey != "" {
+		defer biz.DefaultStreamPreviewRegistry.Unregister(ts.previewKey)
+	}
 
 	log.Debug(ctx, "Closing persistent stream", log.Int("chunk_count", len(ts.responseChunks)), log.Bool("received_done", ts.state.StreamCompleted))
 

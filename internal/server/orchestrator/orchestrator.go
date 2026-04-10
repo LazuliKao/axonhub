@@ -187,6 +187,11 @@ func (processor *ChatCompletionOrchestrator) Process(ctx context.Context, reques
 		CurrentCandidateIndex: 0,
 	}
 
+	// Enable preview registry if StoreChunks is enabled
+	if storeChunks, err := processor.SystemService.StoreChunks(ctx); err == nil && storeChunks {
+		state.EnablePreview = true
+	}
+
 	var pipelineOpts []pipeline.Option
 
 	// Only apply retry if policy is enabled
