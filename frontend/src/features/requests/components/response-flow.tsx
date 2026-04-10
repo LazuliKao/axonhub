@@ -1,75 +1,52 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot } from 'lucide-react';
+import { CopyIcon } from 'lucide-react';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
 import { Response as UIResponse } from '@/components/ai-elements/response';
 import { Message, MessageContent } from '@/components/ai-elements/message';
+import { Tool, ToolHeader, ToolContent } from '@/components/ai-elements/tool';
+import { CodeBlock } from '@/components/ai-elements/code-block';
+import { Loader } from '@/components/ai-elements/loader';
 import { Badge } from '@/components/ui/badge';
+
+import { parseResponse } from '../utils/response-parser';
 
 interface ResponseFlowProps {
   chunks?: any[] | null;
   body?: any;
   isLive?: boolean;
+  reasoningDurationMs?: number | null;
 }
 
-export function ResponseFlow({ chunks, body, isLive }: ResponseFlowProps) {
+export function ResponseFlow({ chunks, body, isLive, reasoningDurationMs }: ResponseFlowProps) {
   const { t } = useTranslation();
 
-  const normalizedChunks = chunks ?? [];
+  const { content, reasoning, toolCalls } = useMemo(
+    () => parseResponse(body, chunks),
+    [chunks, body]
+  );
 
-  const { content, reasoning } = useMemo(() => {
-    let fullContent = '';
-    let fullReasoning = '';
-
-    // 1. Try to parse from body first (final result)
-    if (body) {
-      // Handle AxonHub / AI SDK 'parts' format
-      if (Array.isArray(body.parts)) {
-        body.parts.forEach((part: any) => {
-          if (part.type === 'text') fullContent += part.text || '';
-          if (part.type === 'reasoning') fullReasoning += part.text || '';
-        });
-      }
-      
-      // Handle standard OpenAI message format
-      const message = body.choices?.[0]?.message || body.message;
-      if (message) {
-        if (message.content && !fullContent) fullContent = message.content;
-        if (message.reasoning_content && !fullReasoning) fullReasoning = message.reasoning_content;
-      }
-
-      // Handle direct content if it's just a string or has a content field
-      if (!fullContent && typeof body.content === 'string') {
-        fullContent = body.content;
-      }
-
-      if (fullContent || fullReasoning) {
-        return { content: fullContent, reasoning: fullReasoning };
-      }
+  if (!content && !reasoning && toolCalls.length === 0) {
+    if (isLive) {
+      return (
+        <div className='flex min-h-[200px] w-full items-center justify-center rounded-xl border border-dashed bg-muted/5'>
+            <div className='space-y-4 text-center'>
+              <div className='border-primary mx-auto h-12 w-12 animate-spin rounded-full border-b-2'></div>
+              <p className='text-muted-foreground text-lg'>{t('common.loading')}</p>
+            </div>
+        </div>
+      );
     }
-
-    // 2. Fallback to chunks aggregation (for live streaming)
-    normalizedChunks.forEach((chunk) => {
-      // Handle different formats
-      const data = chunk.data || chunk;
-
-      // Custom AxonHub format: data.type === 'text-delta'/'reasoning-delta'
-      if (data.type === 'text-delta' && typeof data.delta === 'string') {
-        fullContent += data.delta;
-      } else if (data.type === 'reasoning-delta' && typeof data.delta === 'string') {
-        fullReasoning += data.delta;
-      } else if (typeof chunk === 'string') {
-        // Fallback for raw string chunks
-        fullContent += chunk;
-      }
-    });
-
-    return { content: fullContent, reasoning: fullReasoning };
-  }, [normalizedChunks, body]);
-
-  if (!content && !reasoning) {
     return null;
   }
+
+  const parseJson = (text: string) => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  };
 
   return (
     <div className='bg-muted/10 rounded-xl border p-6'>
@@ -85,14 +62,57 @@ export function ResponseFlow({ chunks, body, isLive }: ResponseFlowProps) {
       <Message from='assistant'>
         <MessageContent>
           {reasoning && (
-            <Reasoning isStreaming={isLive}>
+            <Reasoning isStreaming={isLive} duration={reasoningDurationMs ? Math.ceil(reasoningDurationMs / 1000) : undefined}>
               <ReasoningTrigger />
               <ReasoningContent>{reasoning}</ReasoningContent>
             </Reasoning>
           )}
-          {content ? (
-            <UIResponse>{content}</UIResponse>
-          ) : isLive ? (
+
+          {content && <UIResponse>{content}</UIResponse>}
+
+          {toolCalls.length > 0 && (
+            <div className='mt-4 space-y-3'>
+              {toolCalls.map((tc, index) => (
+                <Tool key={tc.id || index} defaultOpen={true}>
+                  <ToolHeader 
+                    title={tc.function?.name || 'tool'} 
+                    type='tool-call' 
+                    state={isLive ? 'input-available' : 'output-available'} 
+                  />
+                  <ToolContent>
+                    {tc.id && (
+                      <div className='px-4 pt-3 pb-1'>
+                        <span className='text-muted-foreground font-mono text-xs'>ID: {tc.id}</span>
+                      </div>
+                    )}
+                    <div className='space-y-2 overflow-hidden p-4'>
+                      <div className='flex items-center justify-between'>
+                        <h4 className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>Parameters</h4>
+                        <button
+                          type='button'
+                          className='text-muted-foreground hover:text-foreground text-xs flex items-center gap-1 transition-colors cursor-pointer'
+                          onClick={() => {
+                            const text = typeof tc.function?.arguments === 'string'
+                              ? tc.function.arguments
+                              : JSON.stringify(parseJson(tc.function?.arguments || '{}'), null, 2);
+                            navigator.clipboard.writeText(text);
+                          }}
+                        >
+                          <CopyIcon className='size-3' />
+                          Copy
+                        </button>
+                      </div>
+                      <div className='bg-muted/50 rounded-md'>
+                        <CodeBlock code={JSON.stringify(parseJson(tc.function?.arguments || '{}'), null, 2)} language='json' />
+                      </div>
+                    </div>
+                  </ToolContent>
+                </Tool>
+              ))}
+            </div>
+          )}
+
+          {!content && !toolCalls.length && isLive ? (
             <div className='flex items-center gap-2 text-sm text-muted-foreground italic'>
                <span className='h-1.5 w-1.5 animate-pulse rounded-full bg-primary' />
                {t('common.loading')}...

@@ -27,6 +27,8 @@ import { getStatusColor } from './help';
 import { generateRequestCurl, generateExecutionCurl } from '../utils/curl-generator';
 import { ResponseFlow } from './response-flow';
 
+import { parseResponse } from '../utils/response-parser';
+
 export default function RequestDetailPage() {
   const { t, i18n } = useTranslation();
   const { requestId } = useParams({ from: '/_authenticated/project/requests/$requestId' });
@@ -186,32 +188,23 @@ export default function RequestDetailPage() {
 
   const extractResponseText = useCallback(() => {
     if (!request) return '';
-    let fullContent = '';
+    const { content, reasoning, toolCalls } = parseResponse(request.responseBody, request.responseChunks);
 
-    // 1. Try to parse from body first (final result)
-    if (request.responseBody) {
-      const body = request.responseBody;
-      // Handle AxonHub / AI SDK 'parts' format
-      if (Array.isArray(body.parts)) {
-        body.parts.forEach((part: any) => {
-          if (part.type === 'text') fullContent += part.text || '';
-        });
-      }
+    let result = '';
+    if (reasoning) {
+      result += `${reasoning}\n\n`;
+    }
+    if (content) {
+      result += content;
+    }
+    if (toolCalls.length > 0) {
+      if (result) result += '\n\n';
+      result += toolCalls.map(tc => {
+        return `Tool Call: ${tc.function?.name}\nArguments: ${tc.function?.arguments}`;
+      }).join('\n\n');
     }
 
-    // 2. Fallback to chunks aggregation (for live streaming or when body is not formatted)
-    if (!fullContent && request.responseChunks && request.responseChunks.length > 0) {
-      request.responseChunks.forEach((chunk: any) => {
-        const data = chunk.data || chunk;
-
-        // Custom AxonHub format: data.type === 'text-delta'
-        if (data.type === 'text-delta' && typeof data.delta === 'string') {
-          fullContent += data.delta;
-        }
-      });
-    }
-
-    return fullContent;
+    return result.trim();
   }, [request]);
 
   const handleBack = () => {
@@ -628,6 +621,7 @@ export default function RequestDetailPage() {
                             chunks={request.responseChunks}
                             body={request.responseBody}
                             isLive={request.status === 'processing' && request.stream || undefined}
+                            reasoningDurationMs={request.metricsReasoningDurationMs}
                           />
                         ) : request.status === 'processing' ? (
                           <div className='bg-muted/20 flex h-[400px] w-full items-center justify-center rounded-lg border'>
