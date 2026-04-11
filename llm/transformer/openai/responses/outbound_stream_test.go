@@ -1,7 +1,6 @@
 package responses
 
 import (
-	"maps"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -76,49 +75,11 @@ func TestOutboundTransformer_StreamTransformation_WithTestData(t *testing.T) {
 				}
 			}
 
-			if tt.name == "stream transformation with text and multiple tool calls" {
-				// response.created chunk should carry response_tools metadata for SSE roundtrip preservation.
-				require.NotNil(t, actualLLMResponses[0].TransformerMetadata)
-				rawTools, ok := actualLLMResponses[0].TransformerMetadata["response_tools"]
-				require.True(t, ok)
-				tools, ok := rawTools.([]Tool)
-				require.True(t, ok)
-				require.Len(t, tools, 2)
-				require.Equal(t, "calculate", tools[0].Name)
-				require.Equal(t, "get_current_weather", tools[1].Name)
-
-				// final non-DONE chunk (usage chunk) should also carry response_tools metadata.
-				var lastNonDone *llm.Response
-				for i := len(actualLLMResponses) - 1; i >= 0; i-- {
-					if actualLLMResponses[i] != llm.DoneResponse {
-						lastNonDone = actualLLMResponses[i]
-						break
-					}
-				}
-				require.NotNil(t, lastNonDone)
-				require.NotNil(t, lastNonDone.TransformerMetadata)
-				rawTools, ok = lastNonDone.TransformerMetadata["response_tools"]
-				require.True(t, ok)
-				tools, ok = rawTools.([]Tool)
-				require.True(t, ok)
-				require.Len(t, tools, 2)
-			}
-
 			require.Len(t, actualLLMResponses, len(expectedEvents))
 
 			// exclude the last DONE event
 			for i, expectedEvent := range expectedEvents[:len(expectedEvents)-1] {
-				expected := expectedEvent
-				actual := actualLLMResponses[i]
-
-				if expected != nil {
-					expected = cloneLLMResponseForComparison(expected)
-				}
-				if actual != nil {
-					actual = cloneLLMResponseForComparison(actual)
-				}
-
-				if !xtest.Equal(expected, actual) {
+				if !xtest.Equal(expectedEvent, actualLLMResponses[i]) {
 					t.Fatalf("event %d mismatch:\n%s", i, cmp.Diff(expectedEvent, actualLLMResponses[i]))
 				}
 			}
@@ -152,23 +113,6 @@ func TestOutboundTransformer_StreamTransformation_WithTestData(t *testing.T) {
 			}
 		})
 	}
-}
-
-func cloneLLMResponseForComparison(src *llm.Response) *llm.Response {
-	if src == nil {
-		return nil
-	}
-
-	cloned := *src
-	if src.TransformerMetadata != nil {
-		cloned.TransformerMetadata = maps.Clone(src.TransformerMetadata)
-		delete(cloned.TransformerMetadata, "response_tools")
-		if len(cloned.TransformerMetadata) == 0 {
-			cloned.TransformerMetadata = nil
-		}
-	}
-
-	return &cloned
 }
 
 func TestOutboundTransformer_StreamTransformation_ErrorEvent(t *testing.T) {

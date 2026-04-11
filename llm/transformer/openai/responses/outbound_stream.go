@@ -61,17 +61,6 @@ type outboundStreamState struct {
 	hasEncryptedReasoning   bool
 }
 
-func cloneResponseTools(tools []Tool) []Tool {
-	if len(tools) == 0 {
-		return nil
-	}
-
-	cloned := make([]Tool, len(tools))
-	copy(cloned, tools)
-
-	return cloned
-}
-
 func newResponsesOutboundStream(stream streams.Stream[*httpclient.StreamEvent], scope shared.TransportScope) *responsesOutboundStream {
 	return &responsesOutboundStream{
 		stream: stream,
@@ -166,12 +155,6 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 			if streamEvent.Response.Usage != nil {
 				s.state.usage = streamEvent.Response.Usage.ToUsage()
 				resp.Usage = s.state.usage
-			}
-
-			if tools := cloneResponseTools(streamEvent.Response.Tools); len(tools) > 0 {
-				resp.TransformerMetadata = map[string]any{
-					"response_tools": tools,
-				}
 			}
 		}
 
@@ -439,16 +422,6 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 			finishReason = "tool_calls"
 		}
 
-		var responseTools []Tool
-		if streamEvent.Response != nil {
-			responseTools = cloneResponseTools(streamEvent.Response.Tools)
-		}
-		if len(responseTools) > 0 {
-			resp.TransformerMetadata = map[string]any{
-				"response_tools": responseTools,
-			}
-		}
-
 		// First event: finish_reason with empty delta
 		resp.Choices = []llm.Choice{
 			{
@@ -468,11 +441,6 @@ func (s *responsesOutboundStream) transformStreamChunk(event *httpclient.StreamE
 				Created: s.state.created,
 				Choices: []llm.Choice{},
 				Usage:   s.state.usage,
-			}
-			if len(responseTools) > 0 {
-				usageResp.TransformerMetadata = map[string]any{
-					"response_tools": responseTools,
-				}
 			}
 
 			s.enqueue(resp)

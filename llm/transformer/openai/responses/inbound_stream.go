@@ -74,41 +74,6 @@ type responsesInboundStream struct {
 	err        error
 }
 
-func extractResponseToolsFromMetadata(metadata map[string]any) []Tool {
-	if len(metadata) == 0 {
-		return nil
-	}
-
-	rawTools, ok := metadata["response_tools"]
-	if !ok {
-		return nil
-	}
-
-	switch v := rawTools.(type) {
-	case []Tool:
-		if len(v) == 0 {
-			return nil
-		}
-
-		cloned := make([]Tool, len(v))
-		copy(cloned, v)
-
-		return cloned
-	default:
-		data, err := json.Marshal(v)
-		if err != nil {
-			return nil
-		}
-
-		var tools []Tool
-		if err := json.Unmarshal(data, &tools); err != nil || len(tools) == 0 {
-			return nil
-		}
-
-		return tools
-	}
-}
-
 func (s *responsesInboundStream) enqueueEvent(ev *StreamEvent) error {
 	ev.SequenceNumber = s.sequenceNumber
 	s.sequenceNumber++
@@ -128,11 +93,6 @@ func (s *responsesInboundStream) enqueueEvent(ev *StreamEvent) error {
 	// Use aggregator to accumulate state for response.completed
 	if s.aggregator == nil {
 		s.aggregator = newStreamAggregator()
-	}
-
-	if ev.Response != nil && len(ev.Response.Tools) > 0 && len(s.aggregator.tools) == 0 {
-		s.aggregator.tools = make([]Tool, len(ev.Response.Tools))
-		copy(s.aggregator.tools, ev.Response.Tools)
 	}
 
 	s.aggregator.processEvent(ev)
@@ -196,7 +156,6 @@ func (s *responsesInboundStream) Next() bool {
 			CreatedAt: s.createdAt,
 			Status:    lo.ToPtr("in_progress"),
 			Output:    []Item{},
-			Tools:     extractResponseToolsFromMetadata(chunk.TransformerMetadata),
 		}
 
 		if s.usage != nil {
@@ -287,9 +246,6 @@ func (s *responsesInboundStream) Next() bool {
 
 		// Build final response using aggregator
 		s.aggregator.status = "completed"
-		if len(s.aggregator.tools) == 0 {
-			s.aggregator.tools = extractResponseToolsFromMetadata(chunk.TransformerMetadata)
-		}
 		response := s.aggregator.buildResponse()
 		response.Usage = ConvertLLMUsageToResponsesUsage(s.usage)
 
