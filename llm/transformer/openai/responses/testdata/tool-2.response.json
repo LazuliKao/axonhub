@@ -4,6 +4,44 @@
   "created_at": 1765105306,
   "status": "completed",
   "model": "gpt-4o",
+  "tools": [
+    {
+      "type": "function",
+      "description": "Perform mathematical calculations",
+      "name": "calculate",
+      "parameters": {
+        "properties": {
+          "expression": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expression"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "strict": true
+    },
+    {
+      "type": "function",
+      "description": "Get the current weather for a specified location",
+      "name": "get_current_weather",
+      "parameters": {
+        "properties": {
+          "location": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "location"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  ],
   "output": [
     {
       "id": "rs_0f60342a2cefd3d80069384a0037848193afeafd76535af96e",

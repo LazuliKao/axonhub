@@ -770,6 +770,12 @@ func convertToResponsesAPIResponse(chatResp *llm.Response) *Response {
 		Status:    lo.ToPtr("completed"),
 	}
 
+	if rawTools, ok := chatResp.TransformerMetadata["response_tools"]; ok {
+		if tools, ok := rawTools.([]Tool); ok {
+			resp.Tools = tools
+		}
+	}
+
 	// Convert usage
 	resp.Usage = ConvertLLMUsageToResponsesUsage(chatResp.Usage)
 

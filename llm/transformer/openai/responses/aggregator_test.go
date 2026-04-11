@@ -58,6 +58,13 @@ func TestAggregateStreamChunks_WithTestData(t *testing.T) {
 			expectedHasUsage: true,
 		},
 		{
+			name:             "response tools are preserved from response.created",
+			streamFile:       "tool-2.stream.jsonl",
+			expectedFile:     "tool-2.response.json",
+			expectedMetaID:   "resp_020592949fb9ce090069355e9a54788196911d78a6360a88f2",
+			expectedHasUsage: true,
+		},
+		{
 			name:             "custom tool call stream",
 			streamFile:       "custom_tool.stream.jsonl",
 			expectedFile:     "custom_tool.stream.response.json",
@@ -93,6 +100,15 @@ func TestAggregateStreamChunks_WithTestData(t *testing.T) {
 			// Compare using xtest.Equal with cmp.Diff output on mismatch
 			if !xtest.Equal(expected, actual) {
 				t.Fatalf("response mismatch:\n%s", cmp.Diff(expected, actual))
+			}
+
+			if tt.name == "response tools are preserved from response.created" {
+				require.NotEmpty(t, actual.Tools)
+				require.Len(t, actual.Tools, 2)
+				require.Equal(t, "function", actual.Tools[0].Type)
+				require.Equal(t, "calculate", actual.Tools[0].Name)
+				require.Equal(t, "function", actual.Tools[1].Type)
+				require.Equal(t, "get_current_weather", actual.Tools[1].Name)
 			}
 
 			// Verify meta

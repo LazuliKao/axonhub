@@ -543,6 +543,53 @@ func TestInboundTransformer_TransformResponse(t *testing.T) {
 			},
 		},
 		{
+			name: "response preserves tools from transformer metadata",
+			chatResp: &llm.Response{
+				ID:      "chatcmpl-tools",
+				Object:  "chat.completion",
+				Created: 1677652288,
+				Model:   "gpt-4o",
+				Choices: []llm.Choice{{
+					Index: 0,
+					Message: &llm.Message{
+						Role: "assistant",
+						Content: llm.MessageContent{
+							Content: lo.ToPtr("I'll call tools"),
+						},
+					},
+					FinishReason: lo.ToPtr("stop"),
+				}},
+				TransformerMetadata: map[string]any{
+					"response_tools": []Tool{
+						{
+							Type:        "function",
+							Name:        "get_weather",
+							Description: "Get weather by city",
+							Parameters: map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"city": map[string]any{"type": "string"},
+								},
+								"required":             []string{"city"},
+								"additionalProperties": false,
+							},
+							Strict: lo.ToPtr(true),
+						},
+					},
+				},
+			},
+			expectError: false,
+			validate: func(t *testing.T, result *httpclient.Response) {
+				var resp Response
+
+				err := json.Unmarshal(result.Body, &resp)
+				require.NoError(t, err)
+				require.Len(t, resp.Tools, 1)
+				require.Equal(t, "function", resp.Tools[0].Type)
+				require.Equal(t, "get_weather", resp.Tools[0].Name)
+			},
+		},
+		{
 			name: "response with usage details",
 			chatResp: &llm.Response{
 				ID:      "chatcmpl-789",
@@ -1603,12 +1650,12 @@ func TestInboundTransformer_TransformResponse_WithReasoning(t *testing.T) {
 				require.Equal(t, "reasoning", reasoningOutput.Type)
 				require.Len(t, reasoningOutput.Summary, 1)
 				require.Equal(t, "summary_text", reasoningOutput.Summary[0].Type)
-					require.Equal(t, "I analyzed the problem step by step.", reasoningOutput.Summary[0].Text)
-					require.NotNil(t, reasoningOutput.EncryptedContent)
-					require.Equal(t, shared.OpenAIEncryptedContentPrefix+"encrypted_data_here", *reasoningOutput.EncryptedContent)
+				require.Equal(t, "I analyzed the problem step by step.", reasoningOutput.Summary[0].Text)
+				require.NotNil(t, reasoningOutput.EncryptedContent)
+				require.Equal(t, shared.OpenAIEncryptedContentPrefix+"encrypted_data_here", *reasoningOutput.EncryptedContent)
 
-					// Second output should be message
-					messageOutput := resp.Output[1]
+				// Second output should be message
+				messageOutput := resp.Output[1]
 				require.Equal(t, "message", messageOutput.Type)
 				require.Equal(t, "assistant", messageOutput.Role)
 

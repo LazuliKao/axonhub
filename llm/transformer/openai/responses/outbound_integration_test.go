@@ -293,6 +293,10 @@ func TestResponsesTransformer_TransformResponse_Integration(t *testing.T) {
 	require.Equal(t, expected.Status, actual.Status)
 	require.Equal(t, expected.Model, actual.Model)
 	require.Equal(t, expected.Usage, actual.Usage)
+	require.Len(t, actual.Tools, len(expected.Tools))
+	if len(expected.Tools) > 0 {
+		require.Equal(t, expected.Tools, actual.Tools)
+	}
 	opts := []cmp.Option{
 		cmpopts.IgnoreFields(Item{}, "Annotations"),
 		cmpopts.EquateEmpty(),

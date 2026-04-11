@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"strings"
 
@@ -279,22 +280,29 @@ func (t *OutboundTransformer) transformStandardResponse(
 		return nil, fmt.Errorf("responses api returned empty response: body=%s", string(httpResp.Body))
 	}
 
+	transformerMetadata := map[string]any{}
+	if httpResp.Request != nil && len(httpResp.Request.TransformerMetadata) > 0 {
+		maps.Copy(transformerMetadata, httpResp.Request.TransformerMetadata)
+	}
+
+	if len(resp.Tools) > 0 {
+		tools := make([]Tool, len(resp.Tools))
+		copy(tools, resp.Tools)
+		transformerMetadata["response_tools"] = tools
+	}
+
 	llmResp := &llm.Response{
-		Object:  "chat.completion",
-		ID:      resp.ID,
-		Model:   resp.Model,
-		Created: resp.CreatedAt,
-		Choices: make([]llm.Choice, 0),
+		Object:              "chat.completion",
+		ID:                  resp.ID,
+		Model:               resp.Model,
+		Created:             resp.CreatedAt,
+		Choices:             make([]llm.Choice, 0),
+		TransformerMetadata: transformerMetadata,
 	}
 
 	// Convert usage if present
 	if resp.Usage != nil {
 		llmResp.Usage = resp.Usage.ToUsage()
-	}
-
-	var transformerMetadata map[string]any
-	if httpResp.Request != nil {
-		transformerMetadata = httpResp.Request.TransformerMetadata
 	}
 
 	msg := convertOutputToMessage(resp.Output, scope, transformerMetadata)
