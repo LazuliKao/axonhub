@@ -100,6 +100,9 @@ const CREATE_CHANNEL_MUTATION = `
             forceArrayInstructions
             forceArrayInputs
             replaceDeveloperRoleWithSystem
+            mergeAdjacentUserMessages
+            mergeToolBlocks
+            transformUserMessages
           }
           passThroughUserAgent
         }
@@ -147,6 +150,9 @@ const BULK_CREATE_CHANNELS_MUTATION = `
             forceArrayInstructions
             forceArrayInputs
             replaceDeveloperRoleWithSystem
+            mergeAdjacentUserMessages
+            mergeToolBlocks
+            transformUserMessages
           }
           passThroughUserAgent
         }
@@ -194,6 +200,9 @@ const UPDATE_CHANNEL_MUTATION = `
             forceArrayInstructions
             forceArrayInputs
             replaceDeveloperRoleWithSystem
+            mergeAdjacentUserMessages
+            mergeToolBlocks
+            transformUserMessages
           }
           passThroughUserAgent
         }
@@ -312,6 +321,9 @@ const BULK_IMPORT_CHANNELS_MUTATION = `
             forceArrayInstructions
             forceArrayInputs
             replaceDeveloperRoleWithSystem
+            mergeAdjacentUserMessages
+            mergeToolBlocks
+            transformUserMessages
           }
           passThroughUserAgent
         }
@@ -484,6 +496,9 @@ const BULK_UPDATE_CHANNEL_ORDERING_MUTATION = `
             forceArrayInstructions
             forceArrayInputs
             replaceDeveloperRoleWithSystem
+            mergeAdjacentUserMessages
+            mergeToolBlocks
+            transformUserMessages
           }
           passThroughUserAgent
         }
@@ -602,6 +617,9 @@ const QUERY_CHANNELS_QUERY = `
               forceArrayInstructions
               forceArrayInputs
               replaceDeveloperRoleWithSystem
+              mergeAdjacentUserMessages
+              mergeToolBlocks
+              transformUserMessages
             }
             passThroughUserAgent
             rateLimit {
