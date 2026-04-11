@@ -7,11 +7,14 @@ export const DEVELOPER_IDS = [
   'anthropic',
   'google',
   'minimax',
+  'kwaipilot',
   'xiaomi',
   'longcat',
   'mistral',
+  'nvidia',
   'xai',
   'bytedance',
+  'stepfun',
 ];
 
 export const DEVELOPER_ICONS: Record<string, string> = {
@@ -23,9 +26,12 @@ export const DEVELOPER_ICONS: Record<string, string> = {
   anthropic: 'Claude',
   openai: 'OpenAI',
   minimax: 'Minimax',
+  kwaipilot: 'KwaiKAT',
   alibaba: 'Qwen',
   xiaomi: 'XiaomiMiMo',
   longcat: 'LongCat',
   mistral: 'Mistral',
+  nvidia: 'Nvidia',
   bytedance: 'Doubao',
+  stepfun: 'Stepfun',
 };

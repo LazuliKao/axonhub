@@ -29,12 +29,16 @@ var defaultRetryPolicy = RetryPolicy{
 var defaultModelSettings = SystemModelSettings{
 	FallbackToChannelsOnModelNotFound: true,
 	QueryAllChannelModels:             true,
+	DefaultModelAPIIncludeAll:         false,
 }
 
 var defaultChannelSetting = SystemChannelSettings{
 	Probe: ChannelProbeSetting{
 		Enabled:   true,
 		Frequency: ProbeFrequency5Min,
+	},
+	AutoSync: ChannelModelAutoSyncSetting{
+		Frequency: AutoSyncFrequencyOneHour,
 	},
 }
 

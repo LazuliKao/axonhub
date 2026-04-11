@@ -56,6 +56,16 @@ func (r *mutationResolver) UpdateRetryPolicy(ctx context.Context, input biz.Retr
 	return true, nil
 }
 
+// UpdateWebhookNotifierConfig is the resolver for the updateWebhookNotifierConfig field.
+func (r *mutationResolver) UpdateWebhookNotifierConfig(ctx context.Context, input biz.WebhookNotifierConfig) (bool, error) {
+	err := r.systemService.SetWebhookNotifierConfig(ctx, &input)
+	if err != nil {
+		return false, fmt.Errorf("failed to update webhook notifier config: %w", err)
+	}
+
+	return true, nil
+}
+
 // UpdateSystemModelSettings is the resolver for the updateSystemModelSettings field.
 func (r *mutationResolver) UpdateSystemModelSettings(ctx context.Context, input biz.SystemModelSettings) (bool, error) {
 	err := r.systemService.SetModelSettings(ctx, input)
@@ -108,7 +118,15 @@ func (r *mutationResolver) CompleteAutoDisableChannelOnboarding(ctx context.Cont
 
 // UpdateSystemChannelSettings is the resolver for the updateSystemChannelSettings field.
 func (r *mutationResolver) UpdateSystemChannelSettings(ctx context.Context, input biz.SystemChannelSettings) (bool, error) {
-	err := r.systemService.SetChannelSetting(ctx, input)
+	setting := *r.systemService.ChannelSettingOrDefault(ctx)
+	if input.Probe.Frequency != "" {
+		setting.Probe = input.Probe
+	}
+	if input.AutoSync.Frequency != "" {
+		setting.AutoSync = input.AutoSync
+	}
+
+	err := r.systemService.SetChannelSetting(ctx, setting)
 	if err != nil {
 		return false, fmt.Errorf("failed to update channel setting: %w", err)
 	}
@@ -237,6 +255,11 @@ func (r *queryResolver) StoragePolicy(ctx context.Context) (*biz.StoragePolicy, 
 // RetryPolicy is the resolver for the retryPolicy field.
 func (r *queryResolver) RetryPolicy(ctx context.Context) (*biz.RetryPolicy, error) {
 	return r.systemService.RetryPolicy(ctx)
+}
+
+// WebhookNotifierConfig is the resolver for the webhookNotifierConfig field.
+func (r *queryResolver) WebhookNotifierConfig(ctx context.Context) (*biz.WebhookNotifierConfig, error) {
+	return r.systemService.WebhookNotifierConfig(ctx)
 }
 
 // SystemModelSettings is the resolver for the systemModelSettings field.

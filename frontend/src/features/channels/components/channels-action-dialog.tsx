@@ -8,7 +8,6 @@ import { X, RefreshCw, Search, ChevronLeft, ChevronRight, PanelLeft, Plus, Trash
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useSelectedProjectId } from '@/stores/projectStore';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -226,7 +225,6 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const syncChannelModels = useSyncChannelModels();
   const { data: allChannelNames = [], isSuccess: allChannelNamesLoaded } = useAllChannelNames({ enabled: open && isDuplicate });
   const { data: allTags = [], isLoading: isLoadingTags } = useAllChannelTags();
-  const selectedProjectId = useSelectedProjectId();
   const { data: proxyPresets = [] } = useProxyPresets();
   const saveProxyPreset = useSaveProxyPreset();
   const [supportedModels, setSupportedModels] = useState<string[]>(() => initialRow?.supportedModels || []);
@@ -310,7 +308,6 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const codexOAuth = useOAuthFlow({
     startFn: codexOAuthStart,
     exchangeFn: codexOAuthExchange,
-    projectId: selectedProjectId,
     proxyConfig,
     onSuccess: (credentials) => {
       form.setValue('credentials.apiKey', credentials);
@@ -320,7 +317,6 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const claudecodeOAuth = useOAuthFlow({
     startFn: claudecodeOAuthStart,
     exchangeFn: claudecodeOAuthExchange,
-    projectId: selectedProjectId,
     proxyConfig,
     onSuccess: (credentials) => {
       form.setValue('credentials.apiKey', credentials);
@@ -330,7 +326,6 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const antigravityOAuth = useOAuthFlow({
     startFn: antigravityOAuthStart,
     exchangeFn: antigravityOAuthExchange,
-    projectId: selectedProjectId,
     proxyConfig,
     onSuccess: (credentials) => {
       form.setValue('credentials.apiKey', credentials);
@@ -955,9 +950,15 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
           settings: nextSettings,
         } as z.infer<typeof createChannelInputSchema>);
 
-        // Auto-save proxy preset
+        // Auto-save proxy preset (preserve existing name if available)
         if (proxyType === ProxyType.URL && proxyUrl) {
-          saveProxyPreset.mutate({ url: proxyUrl, username: proxyUsername || undefined, password: proxyPassword || undefined });
+          const existingPreset = proxyPresets.find((p) => p.url === proxyUrl);
+          saveProxyPreset.mutate({
+            name: existingPreset?.name,
+            url: proxyUrl,
+            username: proxyUsername || undefined,
+            password: proxyPassword || undefined,
+          });
         }
       }
 
@@ -1659,7 +1660,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                   <SelectContent>
                                     {proxyPresets.map((preset) => (
                                       <SelectItem key={preset.url} value={preset.url}>
-                                        {preset.url}
+                                        {preset.name || preset.url}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>

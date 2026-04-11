@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { getTokenFromStorage } from '@/stores/authStore';
 import i18n from '@/lib/i18n';
 import { useErrorHandler } from '@/hooks/use-error-handler';
+import type { ProxyConfig } from '@/features/channels/data/schema';
 
 // GraphQL queries and mutations
 const SYSTEM_VERSION_QUERY = `
@@ -88,6 +89,40 @@ const RETRY_POLICY_QUERY = `
 const UPDATE_RETRY_POLICY_MUTATION = `
   mutation UpdateRetryPolicy($input: UpdateRetryPolicyInput!) {
     updateRetryPolicy(input: $input)
+  }
+`;
+
+const WEBHOOK_NOTIFIER_CONFIG_QUERY = `
+  query WebhookNotifierConfig {
+    webhookNotifierConfig {
+      targets {
+        name
+        enabled
+        url
+        proxy {
+          type
+          url
+          username
+          password
+        }
+        timeoutMs
+        headers {
+          key
+          value
+        }
+        body
+      }
+      subscriptions {
+        event
+        targetNames
+      }
+    }
+  }
+`;
+
+const UPDATE_WEBHOOK_NOTIFIER_CONFIG_MUTATION = `
+  mutation UpdateWebhookNotifierConfig($input: WebhookNotifierConfigInput!) {
+    updateWebhookNotifierConfig(input: $input)
   }
 `;
 
@@ -208,6 +243,31 @@ export interface CleanupOptionInput {
 export interface AutoDisableChannelStatus {
   status: number;
   times: number;
+}
+
+export interface WebhookHeader {
+  key: string;
+  value: string;
+}
+
+export interface WebhookTarget {
+  name: string;
+  enabled: boolean;
+  url: string;
+  proxy?: ProxyConfig | null;
+  timeoutMs: number;
+  headers: WebhookHeader[];
+  body: string;
+}
+
+export interface WebhookSubscription {
+  event: string;
+  targetNames: string[];
+}
+
+export interface WebhookNotifierConfig {
+  targets: WebhookTarget[];
+  subscriptions: WebhookSubscription[];
 }
 
 export interface AutoDisableChannel {
@@ -413,6 +473,41 @@ export function useUpdateRetryPolicy() {
   });
 }
 
+export function useWebhookNotifierConfig() {
+  const { handleError } = useErrorHandler();
+
+  return useQuery({
+    queryKey: ['webhookNotifierConfig'],
+    queryFn: async () => {
+      try {
+        const data = await graphqlRequest<{ webhookNotifierConfig: WebhookNotifierConfig }>(WEBHOOK_NOTIFIER_CONFIG_QUERY);
+        return data.webhookNotifierConfig;
+      } catch (error) {
+        handleError(error, i18n.t('common.errors.internalServerError'));
+        throw error;
+      }
+    },
+  });
+}
+
+export function useUpdateWebhookNotifierConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: WebhookNotifierConfig) => {
+      const data = await graphqlRequest<{ updateWebhookNotifierConfig: boolean }>(UPDATE_WEBHOOK_NOTIFIER_CONFIG_MUTATION, { input });
+      return data.updateWebhookNotifierConfig;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['webhookNotifierConfig'] });
+      toast.success(i18n.t('common.success.systemUpdated'));
+    },
+    onError: () => {
+      toast.error(i18n.t('common.errors.systemUpdateFailed'));
+    },
+  });
+}
+
 export function useDefaultDataStorageID() {
   const { handleError } = useErrorHandler();
 
@@ -550,6 +645,7 @@ const MODEL_SETTINGS_QUERY = `
     systemModelSettings {
       fallbackToChannelsOnModelNotFound
       queryAllChannelModels
+      defaultModelAPIIncludeAll
     }
   }
 `;
@@ -565,6 +661,9 @@ const CHANNEL_SETTINGS_QUERY = `
     systemChannelSettings {
       probe {
         enabled
+        frequency
+      }
+      autoSync {
         frequency
       }
     }
@@ -612,11 +711,13 @@ const UPDATE_VIDEO_STORAGE_SETTINGS_MUTATION = `
 export interface ModelSettings {
   fallbackToChannelsOnModelNotFound: boolean;
   queryAllChannelModels: boolean;
+  defaultModelAPIIncludeAll: boolean;
 }
 
 export interface UpdateModelSettingsInput {
   fallbackToChannelsOnModelNotFound?: boolean;
   queryAllChannelModels?: boolean;
+  defaultModelAPIIncludeAll?: boolean;
 }
 
 export function useModelSettings() {
@@ -656,13 +757,20 @@ export function useUpdateModelSettings() {
 
 export type ProbeFrequency = 'ONE_MINUTE' | 'FIVE_MINUTES' | 'THIRTY_MINUTES' | 'ONE_HOUR';
 
+export type AutoSyncFrequency = 'ONE_HOUR' | 'SIX_HOURS' | 'ONE_DAY';
+
 export interface ChannelProbeSetting {
   enabled: boolean;
   frequency: ProbeFrequency;
 }
 
+export interface ChannelModelAutoSyncSetting {
+  frequency: AutoSyncFrequency;
+}
+
 export interface ChannelSetting {
   probe: ChannelProbeSetting;
+  autoSync: ChannelModelAutoSyncSetting;
 }
 
 export interface UpdateChannelProbeSettingInput {
@@ -670,8 +778,13 @@ export interface UpdateChannelProbeSettingInput {
   frequency?: ProbeFrequency;
 }
 
+export interface UpdateChannelModelAutoSyncSettingInput {
+  frequency?: AutoSyncFrequency;
+}
+
 export interface UpdateSystemChannelSettingsInput {
   probe?: UpdateChannelProbeSettingInput;
+  autoSync?: UpdateChannelModelAutoSyncSettingInput;
 }
 
 export function useChannelSetting() {
@@ -1024,6 +1137,7 @@ export function useTriggerAutoBackup() {
 const PROXY_PRESETS_QUERY = `
   query ProxyPresets {
     proxyPresets {
+      name
       url
       username
       password
@@ -1044,12 +1158,14 @@ const DELETE_PROXY_PRESET_MUTATION = `
 `;
 
 export interface ProxyPreset {
+  name?: string;
   url: string;
   username?: string;
   password?: string;
 }
 
 export interface SaveProxyPresetInput {
+  name?: string;
   url: string;
   username?: string;
   password?: string;

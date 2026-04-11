@@ -36,6 +36,7 @@ type OutboundPersistentStream struct {
 	responseChunks []*httpclient.StreamEvent
 	closed         bool
 	state          *PersistenceState
+	previewKey     string // registry key for live preview, empty if preview disabled
 }
 
 var _ streams.Stream[*httpclient.StreamEvent] = (*OutboundPersistentStream)(nil)
@@ -51,7 +52,7 @@ func NewOutboundPersistentStream(
 	perf *biz.PerformanceRecord,
 	state *PersistenceState,
 ) *OutboundPersistentStream {
-	return &OutboundPersistentStream{
+	s := &OutboundPersistentStream{
 		ctx:             ctx,
 		stream:          stream,
 		request:         request,
@@ -64,6 +65,14 @@ func NewOutboundPersistentStream(
 		closed:          false,
 		state:           state,
 	}
+
+	// Register with preview registry for live chunk access
+	if state.EnablePreview && requestExec != nil {
+		s.previewKey = biz.ExecutionKey(requestExec.ID)
+		biz.DefaultStreamPreviewRegistry.Register(s.previewKey, &s.responseChunks)
+	}
+
+	return s
 }
 
 func (ts *OutboundPersistentStream) Next() bool {
@@ -74,6 +83,9 @@ func (ts *OutboundPersistentStream) Current() *httpclient.StreamEvent {
 	event := ts.stream.Current()
 	if event != nil {
 		ts.responseChunks = append(ts.responseChunks, event)
+		if ts.previewKey != "" {
+			biz.DefaultStreamPreviewRegistry.NotifyAppend(ts.previewKey)
+		}
 		// Check if this is a terminal event, which indicates the stream completed successfully.
 		// For Chat Completions API this is the raw [DONE] event; for Responses API this is
 		// response.completed; for Anthropic Messages API this is message_stop.
@@ -96,6 +108,11 @@ func (ts *OutboundPersistentStream) Close() error {
 
 	ts.closed = true
 	ctx := ts.ctx
+
+	// Unregister from preview registry on all exit paths
+	if ts.previewKey != "" {
+		defer biz.DefaultStreamPreviewRegistry.Unregister(ts.previewKey)
+	}
 
 	log.Debug(ctx, "Closing persistent stream", log.Int("chunk_count", len(ts.responseChunks)), log.Bool("received_done", ts.state.StreamCompleted))
 
@@ -387,7 +404,7 @@ func (p *PersistentOutboundTransformer) GetRequest() *ent.Request {
 
 // GetCurrentChannel returns the current channel.
 func (p *PersistentOutboundTransformer) GetCurrentChannel() *biz.Channel {
-	if p.state.CurrentCandidate == nil {
+	if p.state == nil || p.state.CurrentCandidate == nil {
 		return nil
 	}
 
@@ -453,6 +470,26 @@ func (p *PersistentOutboundTransformer) CanRetry(err error) bool {
 
 	if errors.Is(err, errSkipCandidateByCircuitBreaker) {
 		return false
+	}
+
+	// 429 Too Many Requests: check if Retry-After header is present
+	if httpclient.HasRetryAfterHeader(err) {
+		// If Retry-After header is present, skip same-channel retry
+		// (the channel is explicitly rate-limited by upstream)
+		log.Debug(context.Background(), "429 with Retry-After, skipping same-channel retry",
+			log.Int("channel_id", p.state.CurrentCandidate.Channel.ID),
+		)
+
+		return false
+	}
+
+	// 429 without Retry-After header, allow same-channel retry (might be transient rate limit)
+	if httpclient.IsRateLimitErr(err) {
+		log.Debug(context.Background(), "429 without Retry-After, allowing same-channel retry",
+			log.Int("channel_id", p.state.CurrentCandidate.Channel.ID),
+		)
+
+		return true
 	}
 
 	// if there are more models available in the current candidate, try the next model.

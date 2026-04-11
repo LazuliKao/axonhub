@@ -420,7 +420,8 @@ func (s *LoadBalancedSelector) Select(ctx context.Context, req *llm.Request) ([]
 		group := priorityGroups[p]
 
 		// Apply load balancing to sort candidates within this priority group.
-		sortedCandidates := s.loadBalancer.Sort(ctx, group, req.Model)
+		useStream := req.Stream != nil && *req.Stream
+		sortedCandidates := s.loadBalancer.Sort(ctx, group, req.Model, useStream)
 
 		// Add candidates, but stop if we have enough
 		remaining := requiredCount - len(result)
@@ -448,18 +449,19 @@ func (s *LoadBalancedSelector) Select(ctx context.Context, req *llm.Request) ([]
 }
 
 // TagsFilterSelector is a decorator that filters candidates by allowed channel tags.
-// Uses OR logic: a candidate passes if its channel contains any of the allowed tags.
 type TagsFilterSelector struct {
-	wrapped     CandidateSelector
-	allowedTags []string
+	wrapped   CandidateSelector
+	tags      []string
+	matchMode objects.ChannelTagsMatchMode
 }
 
-// WithTagsFilterSelector creates a selector that filters by tags.
-// If allowedTags is empty, all candidates from the wrapped selector are returned.
-func WithTagsFilterSelector(wrapped CandidateSelector, allowedTags []string) *TagsFilterSelector {
+// WithChannelTagsFilterSelector creates a selector that filters by tags and match mode.
+// If tags is empty, all candidates from the wrapped selector are returned.
+func WithChannelTagsFilterSelector(wrapped CandidateSelector, tags []string, matchMode objects.ChannelTagsMatchMode) *TagsFilterSelector {
 	return &TagsFilterSelector{
-		wrapped:     wrapped,
-		allowedTags: allowedTags,
+		wrapped:   wrapped,
+		tags:      tags,
+		matchMode: matchMode,
 	}
 }
 
@@ -469,28 +471,37 @@ func (s *TagsFilterSelector) Select(ctx context.Context, req *llm.Request) ([]*C
 		return nil, err
 	}
 
-	// If no allowed tags specified, return all candidates
-	if len(s.allowedTags) == 0 {
+	if len(s.tags) == 0 {
 		return candidates, nil
 	}
 
-	// Build allowed set for O(1) lookup
-	allowedSet := lo.SliceToMap(s.allowedTags, func(tag string) (string, struct{}) {
-		return tag, struct{}{}
+	candidates = lo.Filter(candidates, func(c *ChannelModelsCandidate, _ int) bool {
+		return matchChannelTagsFilter(s.tags, s.matchMode, c.Channel.Tags)
 	})
 
-	// Filter candidates: keep only those whose channel has at least one allowed tag (OR logic)
-	candidates = lo.Filter(candidates, func(c *ChannelModelsCandidate, _ int) bool {
-		for _, tag := range c.Channel.Tags {
-			if _, ok := allowedSet[tag]; ok {
+	return candidates, nil
+}
+
+func matchChannelTagsFilter(allowedTags []string, matchMode objects.ChannelTagsMatchMode, channelTags []string) bool {
+	//nolint:exhaustive // Checked.
+	switch matchMode.OrDefault() {
+	case objects.ChannelTagsMatchModeAll:
+		for _, allowedTag := range allowedTags {
+			if !slices.Contains(channelTags, allowedTag) {
+				return false
+			}
+		}
+
+		return true
+	default:
+		for _, tag := range channelTags {
+			if slices.Contains(allowedTags, tag) {
 				return true
 			}
 		}
 
 		return false
-	})
-
-	return candidates, nil
+	}
 }
 
 // SpecifiedChannelSelector allows selecting specific channels (including disabled ones) for testing.

@@ -42,7 +42,7 @@ func setupTestAPIKeyService(t *testing.T, cacheConfig xcache.Config) (*APIKeySer
 	client := enttest.NewEntClient(t, "sqlite3", "file:ent?mode=memory&_fk=1")
 
 	projectService := &ProjectService{
-		ProjectCache: xcache.NewFromConfig[ent.Project](cacheConfig),
+		ProjectCache: xcache.NewFromConfig[xcache.Entry[ent.Project]](cacheConfig),
 	}
 
 	apiKeyService := NewAPIKeyService(APIKeyServiceParams{
@@ -435,6 +435,23 @@ func TestAPIKeyService_UpdateAPIKeyProfiles(t *testing.T) {
 		_, err := apiKeyService.UpdateAPIKeyProfiles(ctx, apiKey.ID, profiles)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "does not exist in the profiles list")
+	})
+
+	t.Run("Invalid channel tags match mode", func(t *testing.T) {
+		profiles := objects.APIKeyProfiles{
+			ActiveProfile: "production",
+			Profiles: []objects.APIKeyProfile{
+				{
+					Name:                 "production",
+					ChannelTags:          []string{"official"},
+					ChannelTagsMatchMode: objects.ChannelTagsMatchMode("invalid"),
+				},
+			},
+		}
+
+		_, err := apiKeyService.UpdateAPIKeyProfiles(ctx, apiKey.ID, profiles)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "channelTagsMatchMode is invalid")
 	})
 
 	t.Run("Multiple profiles with unique names", func(t *testing.T) {
@@ -963,7 +980,7 @@ func TestAPIKeyService_CreateAPIKey_Type(t *testing.T) {
 		serviceAccountType := apikey.TypeServiceAccount
 
 		userAPIKey, err := apiKeyService.CreateAPIKey(ctxWithUser, ent.CreateAPIKeyInput{
-			Name:      "User Key",
+			Name:      "User Key for format check",
 			ProjectID: testProject.ID,
 			Type:      &userType,
 		})
@@ -972,7 +989,7 @@ func TestAPIKeyService_CreateAPIKey_Type(t *testing.T) {
 		require.Equal(t, "ah-", userAPIKey.Key[:3])
 
 		serviceAPIKey, err := apiKeyService.CreateAPIKey(ctxWithUser, ent.CreateAPIKeyInput{
-			Name:      "Service Key",
+			Name:      "Service Key for format check",
 			ProjectID: testProject.ID,
 			Type:      &serviceAccountType,
 		})

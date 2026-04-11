@@ -415,6 +415,10 @@ func init() {
 	projectDescDescription := projectFields[1].Descriptor()
 	// project.DefaultDescription holds the default value on creation for the description field.
 	project.DefaultDescription = projectDescDescription.Default.(string)
+	// projectDescProfiles is the schema descriptor for profiles field.
+	projectDescProfiles := projectFields[3].Descriptor()
+	// project.DefaultProfiles holds the default value on creation for the profiles field.
+	project.DefaultProfiles = projectDescProfiles.Default.(*objects.ProjectProfiles)
 	promptMixin := schema.Prompt{}.Mixin()
 	prompt.Policy = privacy.NewPolicies(schema.Prompt{})
 	prompt.Hooks[0] = func(next ent.Mutator) ent.Mutator {
@@ -567,7 +571,7 @@ func init() {
 	// request.DefaultClientIP holds the default value on creation for the client_ip field.
 	request.DefaultClientIP = requestDescClientIP.Default.(string)
 	// requestDescContentSaved is the schema descriptor for content_saved field.
-	requestDescContentSaved := requestFields[18].Descriptor()
+	requestDescContentSaved := requestFields[19].Descriptor()
 	// request.DefaultContentSaved holds the default value on creation for the content_saved field.
 	request.DefaultContentSaved = requestDescContentSaved.Default.(bool)
 	requestexecutionMixin := schema.RequestExecution{}.Mixin()

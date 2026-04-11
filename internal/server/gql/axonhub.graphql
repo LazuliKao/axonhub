@@ -84,6 +84,7 @@ type ChannelSettings {
   headerOverrideOperations: [OverrideOperation!]! @goField(forceResolver: true)
   bodyOverrideOperations: [OverrideOperation!]! @goField(forceResolver: true)
   passThroughUserAgent: Boolean
+  rateLimit: ChannelRateLimit
 }
 
 enum CapabilityPolicy {
@@ -116,6 +117,19 @@ input ChannelSettingsInput {
   headerOverrideOperations: [OverrideOperationInput!]
   bodyOverrideOperations: [OverrideOperationInput!]
   passThroughUserAgent: Boolean
+  rateLimit: ChannelRateLimitInput
+}
+
+input ChannelRateLimitInput {
+  rpm: Int
+  tpm: Int
+  maxConcurrent: Int
+}
+
+type ChannelRateLimit {
+  rpm: Int
+  tpm: Int
+  maxConcurrent: Int
 }
 
 type ChannelCredentials {
@@ -192,6 +206,22 @@ type TestChannelPayload {
   error: String
 }
 
+type TestAPIKeyResult {
+  keyPrefix: String!
+  success: Boolean!
+  latency: Float!
+  error: String
+  disabled: Boolean!
+}
+
+type TestChannelAPIKeysPayload {
+  channelID: ID!
+  total: Int!
+  successCount: Int!
+  failedCount: Int!
+  results: [TestAPIKeyResult!]!
+}
+
 input BulkImportChannelItem {
   type: String!
   name: String!
@@ -253,9 +283,34 @@ input APIKeyProfileInput {
   modelMappings: [ModelMappingInput!]
   channelIDs: [Int!]
   channelTags: [String!]
+  channelTagsMatchMode: ChannelTagsMatchMode
   modelIDs: [String!]
   quota: APIKeyQuotaInput
   loadBalanceStrategy: String
+}
+
+input UpdateProjectProfilesInput {
+  activeProfile: String!
+  profiles: [ProjectProfileInput!]
+}
+
+input ProjectProfileInput {
+  name: String!
+  channelIDs: [Int!]
+  channelTags: [String!]
+  channelTagsMatchMode: ChannelTagsMatchMode
+}
+
+type ProjectProfiles {
+  activeProfile: String!
+  profiles: [ProjectProfile!]
+}
+
+type ProjectProfile {
+  name: String!
+  channelIDs: [Int!]
+  channelTags: [String!]
+  channelTagsMatchMode: ChannelTagsMatchMode
 }
 
 input UpdateAPIKeyScopesInput {
@@ -272,9 +327,15 @@ type APIKeyProfile {
   modelMappings: [ModelMapping!]
   channelIDs: [Int!]
   channelTags: [String!]
+  channelTagsMatchMode: ChannelTagsMatchMode
   modelIDs: [String!]
   quota: APIKeyQuota
   loadBalanceStrategy: String
+}
+
+enum ChannelTagsMatchMode {
+  any
+  all
 }
 
 input APIKeyQuotaInput {
@@ -617,6 +678,7 @@ type Mutation {
   bulkRecoverChannels(ids: [ID!]!): Boolean!
   bulkDeleteChannels(ids: [ID!]!): Boolean!
   testChannel(input: TestChannelInput!): TestChannelPayload!
+  testChannelAPIKeys(channelID: ID!, modelID: String): TestChannelAPIKeysPayload!
   bulkImportChannels(input: BulkImportChannelsInput!): BulkImportChannelsResult!
   bulkUpdateChannelOrdering(
     input: BulkUpdateChannelOrderingInput!
@@ -643,6 +705,7 @@ type Mutation {
   createUser(input: CreateUserInput!): User!
   updateUser(id: ID!, input: UpdateUserInput!): User!
   updateUserStatus(id: ID!, status: UserStatus!): User!
+  deleteUser(id: ID!): Boolean!
 
   createRole(input: CreateRoleInput!): Role!
   updateRole(id: ID!, input: UpdateRoleInput!): Role!
@@ -652,6 +715,8 @@ type Mutation {
   createProject(input: CreateProjectInput!): Project!
   updateProject(id: ID!, input: UpdateProjectInput!): Project!
   updateProjectStatus(id: ID!, status: ProjectStatus!): Project!
+  updateProjectProfiles(id: ID!, input: UpdateProjectProfilesInput!): Project!
+  deleteProject(id: ID!): Boolean!
 
   addUserToProject(input: AddUserToProjectInput!): UserProject!
   removeUserFromProject(input: RemoveUserFromProjectInput!): Boolean!
@@ -727,6 +792,7 @@ input CountChannelsByTypeInput {
 }
 
 extend type Query {
+  allChannelSummarys(includeArchived: Boolean): [Channel!]!
   allChannelTags: [String!]!
   countChannelsByType(input: CountChannelsByTypeInput!): [ChannelTypeCount!]!
   """

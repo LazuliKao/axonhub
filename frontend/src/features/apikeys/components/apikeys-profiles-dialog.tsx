@@ -17,7 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { TagsAutocompleteInput } from '@/components/ui/tags-autocomplete-input';
 import { AutoComplete } from '@/components/auto-complete';
-import { useAllChannelsForOrdering } from '@/features/channels/data/channels';
+import { useAllChannelSummarys } from '@/features/channels/data/channels';
+import { useSelectedProjectId } from '@/stores/projectStore';
 import { useApiKeysContext } from '../context/apikeys-context';
 import { useApiKeyQuotaUsages } from '../data/apikeys';
 import { updateApiKeyProfilesInputSchemaFactory, type ApiKeyProfile, type ApiKeyProfileQuotaUsage, type UpdateApiKeyProfilesInput } from '../data/schema';
@@ -75,6 +76,7 @@ interface ApiKeyProfilesDialogProps {
 export function ApiKeyProfilesDialog({ open, onOpenChange, onSubmit, loading = false, initialData }: ApiKeyProfilesDialogProps) {
   const { t, i18n } = useTranslation();
   const { selectedApiKey } = useApiKeysContext();
+  const selectedProjectId = useSelectedProjectId();
   const { data: availableModels, mutateAsync: fetchModels } = useQueryModels();
   // 用于解决 Dialog 内 Popover 无法滚动的问题
   const [dialogContent, setDialogContent] = useState<HTMLDivElement | null>(null);
@@ -235,6 +237,7 @@ export function ApiKeyProfilesDialog({ open, onOpenChange, onSubmit, loading = f
       modelMappings: [],
       channelIDs: [],
       channelTags: [],
+      channelTagsMatchMode: 'any',
       modelIDs: [],
       loadBalanceStrategy: null,
     });
@@ -319,6 +322,7 @@ export function ApiKeyProfilesDialog({ open, onOpenChange, onSubmit, loading = f
                               quotaUsageByProfileName={quotaUsageByProfileName}
                               defaultExpanded={isActive}
                               portalContainer={dialogContent}
+                              selectedProjectId={selectedProjectId}
                             />
                           </div>
                         );
@@ -401,6 +405,8 @@ interface ProfileCardProps {
   defaultExpanded?: boolean;
   /** Popover Portal 容器元素，解决 Dialog 内无法滚动的问题 */
   portalContainer?: HTMLElement | null;
+  /** 当前选中的 project ID */
+  selectedProjectId?: string | null;
 }
 
 function ProfileCard({
@@ -414,10 +420,11 @@ function ProfileCard({
   quotaUsageByProfileName,
   defaultExpanded = false,
   portalContainer,
+  selectedProjectId,
 }: ProfileCardProps) {
   const [localProfileName, setLocalProfileName] = useState('');
   const [isCollapsed, setIsCollapsed] = useState(!defaultExpanded);
-  const { data: channelsData } = useAllChannelsForOrdering({ enabled: true });
+  const { data: channelsData } = useAllChannelSummarys(selectedProjectId, { enabled: true });
 
   const debouncedProfileName = useDebounce(localProfileName, 500);
 
@@ -930,8 +937,33 @@ function ProfileCard({
 
           {/* Channel Tags Restrictions Section */}
           <div className='border-t pt-6'>
-            <h4 className='mb-3 text-sm font-medium'>{t('apikeys.profiles.allowedChannelTags')}</h4>
-            <p className='text-muted-foreground mb-3 text-xs'>{t('apikeys.profiles.allowedChannelTagsDescription')}</p>
+            <div className='mb-3 flex items-start justify-between gap-3'>
+              <div>
+                <h4 className='text-sm font-medium'>{t('apikeys.profiles.allowedChannelTags')}</h4>
+                <p className='text-muted-foreground mt-1 text-xs'>{t('apikeys.profiles.allowedChannelTagsDescription')}</p>
+              </div>
+              <FormField
+                control={form.control}
+                name={`profiles.${profileIndex}.channelTagsMatchMode`}
+                render={({ field }) => (
+                  <FormItem className='w-[180px]'>
+                    <FormLabel>{t('apikeys.profiles.allowedChannelTagsMatchMode')}</FormLabel>
+                    <FormControl>
+                      <Select value={field.value || 'any'} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='any'>{t('apikeys.profiles.allowedChannelTagsMatchModeAny')}</SelectItem>
+                          <SelectItem value='all'>{t('apikeys.profiles.allowedChannelTagsMatchModeAll')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name={`profiles.${profileIndex}.channelTags`}

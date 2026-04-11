@@ -1199,6 +1199,81 @@ func TestModelService_ListEnabledModels(t *testing.T) {
 		require.True(t, resultMap["tagged-model-2"], "tagged-model-2 should be in result")
 	})
 
+	t.Run("API key with ChannelTags all-match filters channels", func(t *testing.T) {
+		modelSettings := SystemModelSettings{
+			QueryAllChannelModels: true,
+		}
+		err = systemSvc.SetModelSettings(ctx, modelSettings)
+		require.NoError(t, err)
+
+		_, err = client.Channel.Create().
+			SetType(channel.TypeOpenai).
+			SetName("All Tags Channel").
+			SetBaseURL("https://api.all-tags.com/v1").
+			SetCredentials(objects.ChannelCredentials{APIKey: "key-all-tags"}).
+			SetSupportedModels([]string{"all-tags-model"}).
+			SetDefaultTestModel("all-tags-model").
+			SetStatus(channel.StatusEnabled).
+			SetTags([]string{"production", "team-a", "official"}).
+			Save(ctx)
+		require.NoError(t, err)
+
+		_, err = client.Channel.Create().
+			SetType(channel.TypeOpenai).
+			SetName("Partial Tags Channel").
+			SetBaseURL("https://api.partial-tags.com/v1").
+			SetCredentials(objects.ChannelCredentials{APIKey: "key-partial-tags"}).
+			SetSupportedModels([]string{"partial-tags-model"}).
+			SetDefaultTestModel("partial-tags-model").
+			SetStatus(channel.StatusEnabled).
+			SetTags([]string{"production", "team-a"}).
+			Save(ctx)
+		require.NoError(t, err)
+
+		enabledEntities, err := client.Channel.Query().
+			Where(channel.StatusEQ(channel.StatusEnabled)).
+			All(ctx)
+		require.NoError(t, err)
+
+		enabledChannels := make([]*Channel, 0, len(enabledEntities))
+		for _, e := range enabledEntities {
+			built, buildErr := channelSvc.buildChannelWithTransformer(e)
+			require.NoError(t, buildErr)
+
+			enabledChannels = append(enabledChannels, built)
+		}
+
+		channelSvc.SetEnabledChannelsForTest(enabledChannels)
+
+		apiKey := &ent.APIKey{
+			ID:   14,
+			Name: "test-api-key-14",
+			Profiles: &objects.APIKeyProfiles{
+				ActiveProfile: "production",
+				Profiles: []objects.APIKeyProfile{
+					{
+						Name:                 "production",
+						ChannelTags:          []string{"production", "team-a", "official"},
+						ChannelTagsMatchMode: objects.ChannelTagsMatchModeAll,
+					},
+				},
+			},
+		}
+
+		ctx := contexts.WithAPIKey(ctx, apiKey)
+
+		result, err := modelSvc.ListEnabledModels(ctx)
+		require.NoError(t, err)
+
+		resultMap := make(map[string]bool)
+		for _, model := range result {
+			resultMap[model.ID] = true
+		}
+
+		require.True(t, resultMap["all-tags-model"], "all-tags-model should be in result")
+		require.False(t, resultMap["partial-tags-model"], "partial-tags-model should not be in result")
+	})
+
 	t.Run("API key with both ChannelIDs and ChannelTags", func(t *testing.T) {
 		// Get the first channel ID
 		channels := channelSvc.GetEnabledChannels()
@@ -1235,6 +1310,163 @@ func TestModelService_ListEnabledModels(t *testing.T) {
 					"Model %s should be from the first channel", model.ID)
 			}
 		}
+	})
+
+	t.Run("project profile ChannelIDs and ChannelTags use intersection", func(t *testing.T) {
+		err = systemSvc.SetModelSettings(ctx, SystemModelSettings{
+			QueryAllChannelModels: true,
+		})
+		require.NoError(t, err)
+
+		idOnlyChannel, err := client.Channel.Create().
+			SetType(channel.TypeOpenai).
+			SetName("Project ID Only Channel").
+			SetBaseURL("https://api.project-id-only.com/v1").
+			SetCredentials(objects.ChannelCredentials{APIKey: "key-project-id-only"}).
+			SetSupportedModels([]string{"project-id-only-model"}).
+			SetDefaultTestModel("project-id-only-model").
+			SetStatus(channel.StatusEnabled).
+			Save(ctx)
+		require.NoError(t, err)
+
+		matchingChannel, err := client.Channel.Create().
+			SetType(channel.TypeOpenai).
+			SetName("Project Matching Channel").
+			SetBaseURL("https://api.project-matching.com/v1").
+			SetCredentials(objects.ChannelCredentials{APIKey: "key-project-matching"}).
+			SetSupportedModels([]string{"project-matching-model"}).
+			SetDefaultTestModel("project-matching-model").
+			SetStatus(channel.StatusEnabled).
+			SetTags([]string{"project-allowed"}).
+			Save(ctx)
+		require.NoError(t, err)
+
+		enabledEntities, err := client.Channel.Query().
+			Where(channel.StatusEQ(channel.StatusEnabled)).
+			All(ctx)
+		require.NoError(t, err)
+
+		enabledChannels := make([]*Channel, 0, len(enabledEntities))
+		for _, e := range enabledEntities {
+			built, buildErr := channelSvc.buildChannelWithTransformer(e)
+			require.NoError(t, buildErr)
+
+			enabledChannels = append(enabledChannels, built)
+		}
+
+		channelSvc.SetEnabledChannelsForTest(enabledChannels)
+
+		apiKey := &ent.APIKey{
+			ID:   15,
+			Name: "test-api-key-15",
+			Edges: ent.APIKeyEdges{
+				Project: &ent.Project{
+					ID: 100,
+					Profiles: &objects.ProjectProfiles{
+						ActiveProfile: "project-production",
+						Profiles: []objects.ProjectProfile{
+							{
+								Name:        "project-production",
+								ChannelIDs:  []int{idOnlyChannel.ID, matchingChannel.ID},
+								ChannelTags: []string{"project-allowed"},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		projectCtx := contexts.WithAPIKey(ctx, apiKey)
+
+		result, err := modelSvc.ListEnabledModels(projectCtx)
+		require.NoError(t, err)
+
+		resultMap := make(map[string]bool)
+		for _, model := range result {
+			resultMap[model.ID] = true
+		}
+
+		require.True(t, resultMap["project-matching-model"], "channel matching both ID and tag should remain")
+		require.False(t, resultMap["project-id-only-model"], "channel matching only ID should be filtered out")
+	})
+
+	t.Run("project profile all-match ChannelTags filters channels", func(t *testing.T) {
+		err = systemSvc.SetModelSettings(ctx, SystemModelSettings{
+			QueryAllChannelModels: true,
+		})
+		require.NoError(t, err)
+
+		allTagsChannel, err := client.Channel.Create().
+			SetType(channel.TypeOpenai).
+			SetName("Project All Tags Channel").
+			SetBaseURL("https://api.project-all-tags.com/v1").
+			SetCredentials(objects.ChannelCredentials{APIKey: "key-project-all-tags"}).
+			SetSupportedModels([]string{"project-all-tags-model"}).
+			SetDefaultTestModel("project-all-tags-model").
+			SetStatus(channel.StatusEnabled).
+			SetTags([]string{"project-a", "project-b"}).
+			Save(ctx)
+		require.NoError(t, err)
+
+		partialTagsChannel, err := client.Channel.Create().
+			SetType(channel.TypeOpenai).
+			SetName("Project Partial Tags Channel").
+			SetBaseURL("https://api.project-partial-tags.com/v1").
+			SetCredentials(objects.ChannelCredentials{APIKey: "key-project-partial-tags"}).
+			SetSupportedModels([]string{"project-partial-tags-model"}).
+			SetDefaultTestModel("project-partial-tags-model").
+			SetStatus(channel.StatusEnabled).
+			SetTags([]string{"project-a"}).
+			Save(ctx)
+		require.NoError(t, err)
+
+		enabledEntities, err := client.Channel.Query().
+			Where(channel.StatusEQ(channel.StatusEnabled)).
+			All(ctx)
+		require.NoError(t, err)
+
+		enabledChannels := make([]*Channel, 0, len(enabledEntities))
+		for _, e := range enabledEntities {
+			built, buildErr := channelSvc.buildChannelWithTransformer(e)
+			require.NoError(t, buildErr)
+
+			enabledChannels = append(enabledChannels, built)
+		}
+
+		channelSvc.SetEnabledChannelsForTest(enabledChannels)
+
+		apiKey := &ent.APIKey{
+			ID:   16,
+			Name: "test-api-key-16",
+			Edges: ent.APIKeyEdges{
+				Project: &ent.Project{
+					ID: 101,
+					Profiles: &objects.ProjectProfiles{
+						ActiveProfile: "project-production",
+						Profiles: []objects.ProjectProfile{
+							{
+								Name:                 "project-production",
+								ChannelTags:          []string{"project-a", "project-b"},
+								ChannelTagsMatchMode: objects.ChannelTagsMatchModeAll,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		projectCtx := contexts.WithAPIKey(ctx, apiKey)
+
+		result, err := modelSvc.ListEnabledModels(projectCtx)
+		require.NoError(t, err)
+
+		resultMap := make(map[string]bool)
+		for _, model := range result {
+			resultMap[model.ID] = true
+		}
+
+		require.True(t, resultMap[allTagsChannel.SupportedModels[0]], "channel matching all tags should remain")
+		require.False(t, resultMap[partialTagsChannel.SupportedModels[0]], "channel missing one tag should be filtered out")
 	})
 
 	t.Run("empty channels returns empty models", func(t *testing.T) {

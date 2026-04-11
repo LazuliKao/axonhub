@@ -1,3 +1,4 @@
+//nolint:nilerr // Checked.
 package biz
 
 import (
@@ -6,11 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/eko/gocache/lib/v4/store"
 
+	"github.com/looplj/axonhub/internal/authz"
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/request"
@@ -349,6 +350,7 @@ func (s *RequestService) CreateRequestExecution(
 type LatencyMetrics struct {
 	LatencyMs           *int64
 	FirstTokenLatencyMs *int64
+	ReasoningDurationMs *int64
 }
 
 // UpdateRequestCompleted updates request status to completed with response body.
@@ -397,6 +399,10 @@ func (s *RequestService) UpdateRequestCompleted(
 
 		if metrics.FirstTokenLatencyMs != nil {
 			upd = upd.SetMetricsFirstTokenLatencyMs(*metrics.FirstTokenLatencyMs)
+		}
+
+		if metrics.ReasoningDurationMs != nil {
+			upd = upd.SetMetricsReasoningDurationMs(*metrics.ReasoningDurationMs)
 		}
 	}
 
@@ -481,6 +487,10 @@ func (s *RequestService) UpdateRequestStatusExternalIDAndResponseBody(
 		if metrics.FirstTokenLatencyMs != nil {
 			upd = upd.SetMetricsFirstTokenLatencyMs(*metrics.FirstTokenLatencyMs)
 		}
+
+		if metrics.ReasoningDurationMs != nil {
+			upd = upd.SetMetricsReasoningDurationMs(*metrics.ReasoningDurationMs)
+		}
 	}
 
 	if storeResponseBody {
@@ -561,6 +571,10 @@ func (s *RequestService) UpdateRequestExecutionCompleted(
 
 		if metrics.FirstTokenLatencyMs != nil {
 			upd = upd.SetMetricsFirstTokenLatencyMs(*metrics.FirstTokenLatencyMs)
+		}
+
+		if metrics.ReasoningDurationMs != nil {
+			upd = upd.SetMetricsReasoningDurationMs(*metrics.ReasoningDurationMs)
 		}
 	}
 
@@ -881,6 +895,66 @@ func (s *RequestService) UpdateRequestStatusFromError(ctx context.Context, reque
 	return s.UpdateRequestStatus(ctx, requestID, request.StatusFailed)
 }
 
+// cancelStaleRecords updates records older than maxAge to canceled status.
+func (s *RequestService) cancelStaleRecords(
+	ctx context.Context,
+	maxAge time.Duration,
+	entityName string,
+	updateFn func(ctx context.Context, cutoff time.Time) (int, error),
+) error {
+	cutoff := time.Now().UTC().Add(-maxAge)
+	return authz.RunWithSystemBypassVoid(ctx, "cleanup-"+entityName, func(ctx context.Context) error {
+		count, err := updateFn(ctx, cutoff)
+		if err != nil {
+			return fmt.Errorf("failed to cancel stale %s: %w", entityName, err)
+		}
+		if count > 0 {
+			log.Info(ctx, "canceled stale processing records",
+				log.String("entity", entityName),
+				log.Int("count", count),
+				log.Duration("maxAge", maxAge))
+		}
+		return nil
+	})
+}
+
+// maxProcessingDuration defines how long a record can be in "processing" state.
+// Records exceeding this are considered stuck and will be canceled on startup.
+const maxProcessingDuration = 1 * time.Hour
+
+func (s *RequestService) ClearStaleProcessingOnStartup(ctx context.Context) error {
+	var errs []error
+
+	if err := s.cancelStaleRecords(ctx, maxProcessingDuration, "requests", func(ctx context.Context, cutoff time.Time) (int, error) {
+		return s.entFromContext(ctx).Request.Update().
+			Where(
+				request.StatusEQ(request.StatusProcessing),
+				request.CreatedAtLT(cutoff),
+			).
+			SetStatus(request.StatusCanceled).
+			Save(ctx)
+	}); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := s.cancelStaleRecords(ctx, maxProcessingDuration, "executions", func(ctx context.Context, cutoff time.Time) (int, error) {
+		return s.entFromContext(ctx).RequestExecution.Update().
+			Where(
+				requestexecution.StatusEQ(requestexecution.StatusProcessing),
+				requestexecution.CreatedAtLT(cutoff),
+			).
+			SetStatus(requestexecution.StatusCanceled).
+			Save(ctx)
+	}); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("startup cleanup failed: %w", errors.Join(errs...))
+	}
+	return nil
+}
+
 // UpdateRequestChannelID updates request with channel ID after channel selection.
 func (s *RequestService) UpdateRequestChannelID(ctx context.Context, requestID int, channelID int) error {
 	client := s.entFromContext(ctx)
@@ -909,10 +983,14 @@ func (s *RequestService) LoadRequestBody(ctx context.Context, req *ent.Request) 
 	dataStorage, err := s.getDataStorage(ctx, req.DataStorageID)
 	if err != nil {
 		log.Warn(ctx, "Failed to get data storage for request body", log.Cause(err), log.Int("request_id", req.ID))
-		return req.RequestBody, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
+		if req.RequestBody == nil {
+			return xjson.EmptyJSONRawMessage, nil
+		}
+
 		return req.RequestBody, nil
 	}
 
@@ -920,12 +998,6 @@ func (s *RequestService) LoadRequestBody(ctx context.Context, req *ent.Request) 
 
 	data, err := s.DataStorageService.LoadData(ctx, dataStorage, key)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return req.RequestBody, nil
-		}
-
-		log.Warn(ctx, "Failed to load request body", log.Cause(err), log.Int("request_id", req.ID))
-
 		return xjson.EmptyJSONRawMessage, nil
 	}
 
@@ -944,16 +1016,20 @@ func (s *RequestService) LoadResponseBody(ctx context.Context, req *ent.Request)
 
 	// Only load response body if request is completed
 	if req.Status != request.StatusCompleted {
-		return nil, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	dataStorage, err := s.getDataStorage(ctx, req.DataStorageID)
 	if err != nil {
 		log.Warn(ctx, "Failed to get data storage for request response body", log.Cause(err), log.Int("request_id", req.ID))
-		return req.ResponseBody, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
+		if req.ResponseBody == nil {
+			return xjson.EmptyJSONRawMessage, nil
+		}
+
 		return req.ResponseBody, nil
 	}
 
@@ -961,13 +1037,7 @@ func (s *RequestService) LoadResponseBody(ctx context.Context, req *ent.Request)
 
 	data, err := s.DataStorageService.LoadData(ctx, dataStorage, key)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return req.ResponseBody, nil
-		}
-
-		log.Warn(ctx, "Failed to load request response body", log.Cause(err), log.Int("request_id", req.ID))
-
-		return req.ResponseBody, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	if json.Valid(data) {
@@ -982,15 +1052,20 @@ func (s *RequestService) LoadResponseChunks(ctx context.Context, req *ent.Reques
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
+	// Live preview for active streaming requests
+	if req.Stream && req.Status == request.StatusProcessing {
+		chunks := DefaultStreamPreviewRegistry.GetChunks(RequestKey(req.ID))
+		return chunks, nil
+	}
 	// Only load response chunks if request is completed and streaming.
 	if !req.Stream || req.Status != request.StatusCompleted {
-		return nil, nil
+		return []objects.JSONRawMessage{}, nil
 	}
 
 	dataStorage, err := s.getDataStorage(ctx, req.DataStorageID)
 	if err != nil {
 		log.Warn(ctx, "Failed to get data storage for request response chunks", log.Cause(err), log.Int("request_id", req.ID))
-		return req.ResponseChunks, nil
+		return []objects.JSONRawMessage{}, nil
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
@@ -1001,13 +1076,9 @@ func (s *RequestService) LoadResponseChunks(ctx context.Context, req *ent.Reques
 
 	data, err := s.DataStorageService.LoadData(ctx, dataStorage, key)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return req.ResponseChunks, nil
-		}
-
 		log.Warn(ctx, "Failed to load request response chunks", log.Cause(err), log.Int("request_id", req.ID))
 
-		return req.ResponseChunks, nil
+		return []objects.JSONRawMessage{}, nil
 	}
 
 	if len(data) == 0 {
@@ -1017,7 +1088,7 @@ func (s *RequestService) LoadResponseChunks(ctx context.Context, req *ent.Reques
 	var chunks []objects.JSONRawMessage
 	if err := json.Unmarshal(data, &chunks); err != nil {
 		log.Warn(ctx, "Failed to unmarshal request response chunks", log.Cause(err), log.Int("request_id", req.ID))
-		return req.ResponseChunks, nil
+		return []objects.JSONRawMessage{}, nil
 	}
 
 	return chunks, nil
@@ -1032,10 +1103,14 @@ func (s *RequestService) LoadRequestExecutionRequestBody(ctx context.Context, ex
 	dataStorage, err := s.getDataStorage(ctx, exec.DataStorageID)
 	if err != nil {
 		log.Warn(ctx, "Failed to get data storage for execution request body", log.Cause(err), log.Int("execution_id", exec.ID))
-		return exec.RequestBody, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
+		if exec.RequestBody == nil {
+			return xjson.EmptyJSONRawMessage, nil
+		}
+
 		return exec.RequestBody, nil
 	}
 
@@ -1043,13 +1118,7 @@ func (s *RequestService) LoadRequestExecutionRequestBody(ctx context.Context, ex
 
 	data, err := s.DataStorageService.LoadData(ctx, dataStorage, key)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return exec.RequestBody, nil
-		}
-
-		log.Warn(ctx, "Failed to load request execution request body", log.Cause(err), log.Int("execution_id", exec.ID))
-
-		return exec.RequestBody, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	if json.Valid(data) {
@@ -1067,16 +1136,20 @@ func (s *RequestService) LoadRequestExecutionResponseBody(ctx context.Context, e
 
 	// Only load response body if execution is completed
 	if exec.Status != requestexecution.StatusCompleted {
-		return nil, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	dataStorage, err := s.getDataStorage(ctx, exec.DataStorageID)
 	if err != nil {
 		log.Warn(ctx, "Failed to get data storage for execution response body", log.Cause(err), log.Int("execution_id", exec.ID))
-		return exec.ResponseBody, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
+		if exec.ResponseBody == nil {
+			return xjson.EmptyJSONRawMessage, nil
+		}
+
 		return exec.ResponseBody, nil
 	}
 
@@ -1084,13 +1157,7 @@ func (s *RequestService) LoadRequestExecutionResponseBody(ctx context.Context, e
 
 	data, err := s.DataStorageService.LoadData(ctx, dataStorage, key)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return exec.ResponseBody, nil
-		}
-
-		log.Warn(ctx, "Failed to load request execution response body", log.Cause(err), log.Int("execution_id", exec.ID))
-
-		return exec.ResponseBody, nil
+		return xjson.EmptyJSONRawMessage, nil
 	}
 
 	if json.Valid(data) {
@@ -1106,15 +1173,20 @@ func (s *RequestService) LoadRequestExecutionResponseChunks(ctx context.Context,
 		return nil, fmt.Errorf("request execution is nil")
 	}
 
+	// Live preview for active streaming executions
+	if exec.Stream && exec.Status == requestexecution.StatusProcessing {
+		chunks := DefaultStreamPreviewRegistry.GetChunks(ExecutionKey(exec.ID))
+		return chunks, nil
+	}
 	// Only load response body if execution is completed
 	if !exec.Stream || exec.Status != requestexecution.StatusCompleted {
-		return nil, nil
+		return []objects.JSONRawMessage{}, nil
 	}
 
 	dataStorage, err := s.getDataStorage(ctx, exec.DataStorageID)
 	if err != nil {
 		log.Warn(ctx, "Failed to get data storage for execution response chunks", log.Cause(err), log.Int("execution_id", exec.ID))
-		return exec.ResponseChunks, nil
+		return []objects.JSONRawMessage{}, nil
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
@@ -1125,20 +1197,16 @@ func (s *RequestService) LoadRequestExecutionResponseChunks(ctx context.Context,
 
 	data, err := s.DataStorageService.LoadData(ctx, dataStorage, key)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return exec.ResponseChunks, nil
-		}
-
 		log.Warn(ctx, "Failed to load request execution response chunks", log.Cause(err), log.Int("execution_id", exec.ID))
 
-		return exec.ResponseChunks, nil
+		return []objects.JSONRawMessage{}, nil
 	}
 
 	if json.Valid(data) {
 		var chunks []objects.JSONRawMessage
 		if err := json.Unmarshal(data, &chunks); err != nil {
 			log.Warn(ctx, "Failed to unmarshal request execution response chunks", log.Cause(err), log.Int("execution_id", exec.ID))
-			return exec.ResponseChunks, nil
+			return []objects.JSONRawMessage{}, nil
 		}
 
 		return chunks, nil

@@ -92,6 +92,12 @@ func (m *performanceRecording) OnOutboundLlmResponse(ctx context.Context, respon
 		return response, nil
 	}
 
+	if response != nil && response.Usage != nil {
+		if tokenCount := response.Usage.GetCompletionTokens(); tokenCount != nil && *tokenCount > 0 {
+			m.outbound.state.Perf.CompletionTokens = *tokenCount
+		}
+	}
+
 	m.outbound.state.Perf.MarkSuccess()
 	m.outbound.state.ChannelService.AsyncRecordPerformance(ctx, m.outbound.state.Perf)
 
@@ -135,7 +141,9 @@ type recordPerformanceStream struct {
 	stream streams.Stream[*llm.Response]
 	state  *PersistenceState
 
-	firstTokenSet bool
+	firstTokenSet     bool
+	reasoningStartSet bool
+	reasoningEndSet   bool
 }
 
 func (s *recordPerformanceStream) Current() *llm.Response {
@@ -149,7 +157,25 @@ func (s *recordPerformanceStream) Current() *llm.Response {
 		s.firstTokenSet = true
 	}
 
+	if s.state.Perf != nil && len(event.Choices) > 0 {
+		delta := event.Choices[0].Delta
+		if delta != nil {
+			if delta.ReasoningContent != nil && *delta.ReasoningContent != "" {
+				if !s.reasoningStartSet {
+					s.state.Perf.MarkReasoningStart()
+					s.reasoningStartSet = true
+				}
+			} else if (delta.Content.Content != nil && *delta.Content.Content != "") || len(delta.Content.MultipleContent) > 0 || len(delta.ToolCalls) > 0 {
+				if s.reasoningStartSet && !s.reasoningEndSet {
+					s.state.Perf.MarkReasoningEnd()
+					s.reasoningEndSet = true
+				}
+			}
+		}
+	}
+
 	if tokenCount := event.Usage.GetCompletionTokens(); tokenCount != nil && *tokenCount > 0 {
+		s.state.Perf.CompletionTokens = *tokenCount
 		s.state.Perf.MarkSuccess()
 		s.state.ChannelService.AsyncRecordPerformance(s.ctx, s.state.Perf)
 	}
