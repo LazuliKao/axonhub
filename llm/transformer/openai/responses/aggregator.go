@@ -19,7 +19,6 @@ type streamAggregator struct {
 	model      string
 	createdAt  int64
 	status     string
-	tools      []Tool
 
 	// Output items - keyed by output_index.
 	// Some streams may (unexpectedly) reuse output_index for multiple items, so we store a slice.
@@ -208,10 +207,6 @@ func (a *streamAggregator) processEvent(ev *StreamEvent) {
 			a.responseID = ev.Response.ID
 			a.model = ev.Response.Model
 			a.createdAt = ev.Response.CreatedAt
-			if len(ev.Response.Tools) > 0 {
-				a.tools = make([]Tool, len(ev.Response.Tools))
-				copy(a.tools, ev.Response.Tools)
-			}
 
 			if ev.Response.Usage != nil {
 				a.usage = ev.Response.Usage
@@ -582,7 +577,6 @@ func (a *streamAggregator) buildResponse() *Response {
 		CreatedAt: a.createdAt,
 		Status:    lo.ToPtr(a.status),
 		Output:    output,
-		Tools:     a.tools,
 		Usage:     a.usage,
 	}
 }

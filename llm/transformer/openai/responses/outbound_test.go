@@ -843,44 +843,6 @@ func TestOutboundTransformer_TransformResponse(t *testing.T) {
 				require.Equal(t, "encrypted_data_here", *result.Choices[0].Message.ReasoningSignature)
 			},
 		},
-		{
-			name: "response stores tools in transformer metadata",
-			httpResp: &httpclient.Response{
-				StatusCode: http.StatusOK,
-				Body: []byte(`{
-					"id": "resp_with_tools",
-					"object": "response",
-					"created_at": 1759161016,
-					"status": "completed",
-					"model": "gpt-4o",
-					"output": [],
-					"tools": [
-						{
-							"type": "function",
-							"name": "get_weather",
-							"description": "Get weather by city",
-							"parameters": {
-								"type": "object",
-								"properties": {"city": {"type": "string"}},
-								"required": ["city"],
-								"additionalProperties": false
-							},
-							"strict": true
-						}
-					]
-				}`),
-			},
-			expectError: false,
-			validate: func(t *testing.T, result *llm.Response) {
-				require.NotNil(t, result.TransformerMetadata)
-				rawTools, ok := result.TransformerMetadata["response_tools"]
-				require.True(t, ok)
-				tools, ok := rawTools.([]Tool)
-				require.True(t, ok)
-				require.Len(t, tools, 1)
-				require.Equal(t, "get_weather", tools[0].Name)
-			},
-		},
 	}
 
 	for _, tt := range tests {
