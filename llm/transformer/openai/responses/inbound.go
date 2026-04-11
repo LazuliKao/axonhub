@@ -265,6 +265,7 @@ func convertToLLMRequest(req *Request) (*llm.Request, error) {
 		}
 
 		chatReq.Tools = tools
+		chatReq.TransformerMetadata["tools"] = req.Tools
 	}
 
 	// Convert text format to response format
@@ -768,6 +769,12 @@ func convertToResponsesAPIResponse(chatResp *llm.Response) *Response {
 		CreatedAt: chatResp.Created,
 		Output:    make([]Item, 0),
 		Status:    lo.ToPtr("completed"),
+	}
+
+	if rawTools, ok := chatResp.TransformerMetadata["tools"]; ok {
+		if toolsSlice, ok := rawTools.([]Tool); ok {
+			resp.Tools = toolsSlice
+		}
 	}
 
 	// Convert usage
