@@ -40,6 +40,9 @@ type TransformOptions {
   forceArrayInstructions: Boolean!
   forceArrayInputs: Boolean!
   replaceDeveloperRoleWithSystem: Boolean!
+  mergeAdjacentUserMessages: Boolean
+  mergeToolBlocks: Boolean
+  transformUserMessages: Boolean
 }
 
 type SyncChannelModelsPayload {
@@ -51,6 +54,9 @@ input TransformOptionsInput {
   forceArrayInstructions: Boolean
   forceArrayInputs: Boolean
   replaceDeveloperRoleWithSystem: Boolean
+  mergeAdjacentUserMessages: Boolean
+  mergeToolBlocks: Boolean
+  transformUserMessages: Boolean
 }
 
 enum ProxyType {

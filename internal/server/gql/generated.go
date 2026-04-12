@@ -1612,7 +1612,10 @@ type ComplexityRoot struct {
 	TransformOptions struct {
 		ForceArrayInputs               func(childComplexity int) int
 		ForceArrayInstructions         func(childComplexity int) int
+		MergeAdjacentUserMessages      func(childComplexity int) int
+		MergeToolBlocks                func(childComplexity int) int
 		ReplaceDeveloperRoleWithSystem func(childComplexity int) int
+		TransformUserMessages          func(childComplexity int) int
 	}
 
 	TriggerBackupPayload struct {
@@ -8861,12 +8864,30 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.TransformOptions.ForceArrayInstructions(childComplexity), true
+	case "TransformOptions.mergeAdjacentUserMessages":
+		if e.complexity.TransformOptions.MergeAdjacentUserMessages == nil {
+			break
+		}
+
+		return e.complexity.TransformOptions.MergeAdjacentUserMessages(childComplexity), true
+	case "TransformOptions.mergeToolBlocks":
+		if e.complexity.TransformOptions.MergeToolBlocks == nil {
+			break
+		}
+
+		return e.complexity.TransformOptions.MergeToolBlocks(childComplexity), true
 	case "TransformOptions.replaceDeveloperRoleWithSystem":
 		if e.complexity.TransformOptions.ReplaceDeveloperRoleWithSystem == nil {
 			break
 		}
 
 		return e.complexity.TransformOptions.ReplaceDeveloperRoleWithSystem(childComplexity), true
+	case "TransformOptions.transformUserMessages":
+		if e.complexity.TransformOptions.TransformUserMessages == nil {
+			break
+		}
+
+		return e.complexity.TransformOptions.TransformUserMessages(childComplexity), true
 
 	case "TriggerBackupPayload.message":
 		if e.complexity.TriggerBackupPayload.Message == nil {
@@ -20226,6 +20247,12 @@ func (ec *executionContext) fieldContext_ChannelSettings_transformOptions(_ cont
 				return ec.fieldContext_TransformOptions_forceArrayInputs(ctx, field)
 			case "replaceDeveloperRoleWithSystem":
 				return ec.fieldContext_TransformOptions_replaceDeveloperRoleWithSystem(ctx, field)
+			case "mergeAdjacentUserMessages":
+				return ec.fieldContext_TransformOptions_mergeAdjacentUserMessages(ctx, field)
+			case "mergeToolBlocks":
+				return ec.fieldContext_TransformOptions_mergeToolBlocks(ctx, field)
+			case "transformUserMessages":
+				return ec.fieldContext_TransformOptions_transformUserMessages(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type TransformOptions", field.Name)
 		},
@@ -47434,6 +47461,93 @@ func (ec *executionContext) fieldContext_TransformOptions_replaceDeveloperRoleWi
 	return fc, nil
 }
 
+func (ec *executionContext) _TransformOptions_mergeAdjacentUserMessages(ctx context.Context, field graphql.CollectedField, obj *objects.TransformOptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TransformOptions_mergeAdjacentUserMessages,
+		func(ctx context.Context) (any, error) {
+			return obj.MergeAdjacentUserMessages, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TransformOptions_mergeAdjacentUserMessages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TransformOptions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TransformOptions_mergeToolBlocks(ctx context.Context, field graphql.CollectedField, obj *objects.TransformOptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TransformOptions_mergeToolBlocks,
+		func(ctx context.Context) (any, error) {
+			return obj.MergeToolBlocks, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TransformOptions_mergeToolBlocks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TransformOptions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TransformOptions_transformUserMessages(ctx context.Context, field graphql.CollectedField, obj *objects.TransformOptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TransformOptions_transformUserMessages,
+		func(ctx context.Context) (any, error) {
+			return obj.TransformUserMessages, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TransformOptions_transformUserMessages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TransformOptions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _TriggerBackupPayload_success(ctx context.Context, field graphql.CollectedField, obj *TriggerBackupPayload) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -71296,7 +71410,7 @@ func (ec *executionContext) unmarshalInputTransformOptionsInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"forceArrayInstructions", "forceArrayInputs", "replaceDeveloperRoleWithSystem"}
+	fieldsInOrder := [...]string{"forceArrayInstructions", "forceArrayInputs", "replaceDeveloperRoleWithSystem", "mergeAdjacentUserMessages", "mergeToolBlocks", "transformUserMessages"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -71324,6 +71438,27 @@ func (ec *executionContext) unmarshalInputTransformOptionsInput(ctx context.Cont
 				return it, err
 			}
 			it.ReplaceDeveloperRoleWithSystem = data
+		case "mergeAdjacentUserMessages":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mergeAdjacentUserMessages"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MergeAdjacentUserMessages = data
+		case "mergeToolBlocks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mergeToolBlocks"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MergeToolBlocks = data
+		case "transformUserMessages":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("transformUserMessages"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TransformUserMessages = data
 		}
 	}
 
@@ -92236,6 +92371,12 @@ func (ec *executionContext) _TransformOptions(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "mergeAdjacentUserMessages":
+			out.Values[i] = ec._TransformOptions_mergeAdjacentUserMessages(ctx, field, obj)
+		case "mergeToolBlocks":
+			out.Values[i] = ec._TransformOptions_mergeToolBlocks(ctx, field, obj)
+		case "transformUserMessages":
+			out.Values[i] = ec._TransformOptions_transformUserMessages(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
