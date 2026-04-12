@@ -123,9 +123,9 @@ export const transformOptionsSchema = z.object({
   forceArrayInstructions: z.boolean().optional(),
   forceArrayInputs: z.boolean().optional(),
   replaceDeveloperRoleWithSystem: z.boolean().optional(),
-  mergeAdjacentUserMessages: z.boolean().optional(),
-  mergeToolBlocks: z.boolean().optional(),
-  transformUserMessages: z.boolean().optional(),
+  mergeAdjacentUserMessages: z.boolean().nullish(),
+  mergeToolBlocks: z.boolean().nullish(),
+  transformUserMessages: z.boolean().nullish(),
 });
 export type TransformOptions = z.infer<typeof transformOptionsSchema>;
 
