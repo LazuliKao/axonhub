@@ -356,9 +356,6 @@ type Message struct {
 
 	// Audio contains model-generated audio metadata for assistant messages.
 	Audio *OutputAudio `json:"audio,omitempty"`
-
-	// Copilot-only: X-Initiator quota tracking. Ignored by other providers.
-	Attribution string `json:"attribution,omitempty"`
 }
 
 // Annotation represents a citation or reference annotation in a message.
