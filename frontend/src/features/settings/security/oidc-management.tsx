@@ -20,9 +20,9 @@ export default function OidcManagement({ providers }: OidcManagementProps) {
   const [unlinkTarget, setUnlinkTarget] = useState<{ identityId: string; providerName: string } | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
 
-  const handleLink = async (providerName: string) => {
+  const handleLink = async (providerId: string) => {
     try {
-      const res = await authApi.getOIDCLinkAuthorizeURL(providerName);
+      const res = await authApi.getOIDCLinkAuthorizeURL(providerId);
       if (res.data && res.data.url) {
         window.location.href = res.data.url;
       }
@@ -61,15 +61,26 @@ export default function OidcManagement({ providers }: OidcManagementProps) {
       {providers.length > 0 && (
         <div className='mt-4 space-y-4'>
           <div className='grid gap-4 grid-cols-1 md:grid-cols-2'>
-            {providers.map((p: any) => (
-              <div key={p.name} className='flex items-center justify-between p-4 rounded-lg border bg-card shadow-sm transition-all hover:shadow-md'>
+            {providers.map((p: any) => {
+              const isInactive = p.active === false;
+              const providerId = p.id || p.name;
+              const providerLabel = p.display_name || p.name;
+
+              return (
+              <div
+                key={providerId}
+                className={`flex items-center justify-between rounded-lg border bg-card p-4 shadow-sm transition-all hover:shadow-md ${isInactive ? 'border-2 border-destructive' : ''}`}
+                title={isInactive ? t('common.status.inactiveRetry') : undefined}
+              >
                 <div className='flex items-center gap-3'>
                   {p.icon_url && (
-                    <img src={p.icon_url} alt={p.display_name} className='w-8 h-8 object-contain rounded' />
+                    <img src={p.icon_url} alt={providerLabel} className='w-8 h-8 object-contain rounded' />
                   )}
                   <div className='flex flex-col'>
-                    <span className='font-semibold text-foreground'>{p.display_name || p.name}</span>
-                    {p.is_linked && (
+                    <span className='font-semibold text-foreground'>{providerLabel}</span>
+                    {isInactive ? (
+                      <span className='text-xs font-medium text-destructive'>{t('common.status.inactiveRetry')}</span>
+                    ) : p.is_linked && (
                       <span className='text-xs text-muted-foreground truncate max-w-[150px]'>
                         {p.linked_email}
                       </span>
@@ -85,7 +96,7 @@ export default function OidcManagement({ providers }: OidcManagementProps) {
                     onClick={() =>
                       setUnlinkTarget({
                         identityId: p.linked_identity_id.toString(),
-                        providerName: p.display_name || p.name,
+                        providerName: providerLabel,
                       })
                     }
                     type='button'
@@ -98,7 +109,7 @@ export default function OidcManagement({ providers }: OidcManagementProps) {
                     variant='outline' 
                     size='sm' 
                     className='h-9 border-primary/20 hover:border-primary hover:bg-primary/5 transition-colors text-primary'
-                    onClick={() => handleLink(p.name)}
+                    onClick={() => handleLink(providerId)}
                     type='button'
                   >
                     <LinkIcon className='w-4 h-4 mr-2' />
@@ -106,7 +117,8 @@ export default function OidcManagement({ providers }: OidcManagementProps) {
                   </Button>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

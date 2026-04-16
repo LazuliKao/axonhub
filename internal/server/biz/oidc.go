@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -29,17 +30,21 @@ import (
 )
 
 type ProviderInfo struct {
+	ID               string `json:"id"`
 	Name             string `json:"name"`
 	DisplayName      string `json:"display_name"`
 	JITEnabled       bool   `json:"jit_enabled"`
 	IconURL          string `json:"icon_url"`
 	ButtonColor      string `json:"button_color"`
+	Active           bool   `json:"active"`
+	LastCheck        int64  `json:"last_check,omitempty"`
 	IsLinked         bool   `json:"is_linked"`
 	LinkedIdentityID string `json:"linked_identity_id,omitempty"`
 	LinkedEmail      string `json:"linked_email,omitempty"`
 }
 
 type OIDCProvider struct {
+	ID                    string            `conf:"id" yaml:"id" json:"id"`
 	Name                  string            `conf:"name" yaml:"name" json:"name"`
 	DisplayName           string            `conf:"display_name" yaml:"display_name" json:"display_name"`
 	IssuerURL             string            `conf:"issuer_url" yaml:"issuer_url" json:"issuer_url"`
@@ -58,6 +63,57 @@ type OIDCProvider struct {
 	SyncUserInfo bool   `conf:"sync_user_info" yaml:"sync_user_info" json:"sync_user_info"`
 }
 
+func (p OIDCProvider) normalize() OIDCProvider {
+	normalized := p
+	normalized.ID = strings.TrimSpace(normalized.ID)
+	normalized.Name = strings.TrimSpace(normalized.Name)
+	normalized.DisplayName = strings.TrimSpace(normalized.DisplayName)
+
+	switch {
+	case normalized.ID != "":
+	case normalized.Name != "":
+		normalized.ID = normalized.Name
+	case normalized.DisplayName != "":
+		normalized.ID = normalized.DisplayName
+	}
+
+	if normalized.Name == "" {
+		normalized.Name = normalized.ID
+	}
+	if normalized.DisplayName == "" {
+		normalized.DisplayName = normalized.Name
+	}
+
+	return normalized
+}
+
+func (p OIDCProvider) providerID() string {
+	return p.normalize().ID
+}
+
+func (p OIDCProvider) providerDisplayName() string {
+	return p.normalize().DisplayName
+}
+
+func normalizeOIDCProviderIdentifier(value string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(value), " ", ""))
+}
+
+func (p OIDCProvider) matchesIdentifier(identifier string) bool {
+	normalizedIdentifier := normalizeOIDCProviderIdentifier(identifier)
+	if normalizedIdentifier == "" {
+		return false
+	}
+
+	for _, candidate := range []string{p.providerID(), p.Name} {
+		if normalizeOIDCProviderIdentifier(candidate) == normalizedIdentifier {
+			return true
+		}
+	}
+
+	return false
+}
+
 type OIDCConfig struct {
 	Providers []OIDCProvider `conf:"providers" yaml:"providers" json:"providers"`
 }
@@ -67,7 +123,9 @@ type OIDCService struct {
 
 	cache     xcache.Cache[[]byte]
 	db        *ent.Client
+	mu        sync.Mutex
 	providers map[string]*oidcProvider
+	lastCheck map[string]int64
 }
 
 type oidcProvider struct {
@@ -91,23 +149,40 @@ func NewOIDCService(params OIDCServiceParams) (*OIDCService, error) {
 		cfg:       params.Config,
 		cache:     xcache.NewFromConfig[[]byte](params.CacheConfig),
 		db:        params.DB,
+		mu:        sync.Mutex{},
 		providers: make(map[string]*oidcProvider),
+		lastCheck: make(map[string]int64),
 	}
 
 	numProviders := len(params.Config.Providers)
+	seenProviderIDs := make(map[string]string, numProviders)
 	for i, p := range params.Config.Providers {
+		p = p.normalize()
+		providerID := p.providerID()
+		if providerID == "" {
+			return nil, fmt.Errorf("OIDC provider at index %d requires id or name", i)
+		}
+
+		normalizedProviderID := normalizeOIDCProviderIdentifier(providerID)
+		if previousProviderID, ok := seenProviderIDs[normalizedProviderID]; ok {
+			return nil, fmt.Errorf("duplicate OIDC provider id %q conflicts with %q", providerID, previousProviderID)
+		}
+		seenProviderIDs[normalizedProviderID] = providerID
+
+		svc.cfg.Providers[i] = p
+		svc.lastCheck[providerID] = time.Now().Unix()
 		provider, err := oidc.NewProvider(ctx, p.IssuerURL)
 		if err != nil {
-			log.Error(ctx, "Failed to initialize OIDC provider", log.String("provider", p.Name), zap.Error(err))
+			log.Error(ctx, "Failed to initialize OIDC provider", log.String("provider", providerID), zap.Error(err))
 			continue
 		}
 
 		// Resolve icon_url: supports http(s) URL, data: URI, or local file path.
 		if resolved, err := resolveIconURL(p.IconURL); err != nil {
-			log.Error(ctx, "Failed to resolve icon for OIDC provider", log.String("provider", p.Name), zap.Error(err))
+			log.Error(ctx, "Failed to resolve icon for OIDC provider", log.String("provider", providerID), zap.Error(err))
 		} else {
 			p.IconURL = resolved
-			params.Config.Providers[i].IconURL = resolved
+			svc.cfg.Providers[i].IconURL = resolved
 		}
 
 		// This redirect URI is for IdP -> backend callback handling.
@@ -115,7 +190,7 @@ func NewOIDCService(params OIDCServiceParams) (*OIDCService, error) {
 		// the frontend callback route: /oauth/oidc/idp-callback?code=...
 		redirectURL := "/oauth/oidc/callback"
 		if numProviders > 1 {
-			redirectURL = fmt.Sprintf("/oauth/oidc/callback/%s", p.Name)
+			redirectURL = fmt.Sprintf("/oauth/oidc/callback/%s", providerID)
 		}
 
 		scopes := p.ExtraScopes
@@ -131,7 +206,7 @@ func NewOIDCService(params OIDCServiceParams) (*OIDCService, error) {
 			Scopes:       scopes,
 		}
 
-		svc.providers[p.Name] = &oidcProvider{
+		svc.providers[providerID] = &oidcProvider{
 			config: p,
 			oauth2: oauth2Config,
 			oidc:   provider,
@@ -172,6 +247,69 @@ func (s *OIDCService) CountProviders() int {
 	return len(s.cfg.Providers)
 }
 
+func findOIDCProviderConfig(providers []OIDCProvider, identifier string) (*OIDCProvider, string, bool) {
+	for i := range providers {
+		provider := providers[i].normalize()
+		if provider.matchesIdentifier(identifier) {
+			return &providers[i], provider.providerID(), true
+		}
+	}
+
+	return nil, "", false
+}
+
+func (s *OIDCService) getProviderInfo(identifier string) (bool, int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, providerID, ok := s.getProviderByIdentifierLocked(identifier); ok {
+		return true, s.lastCheck[providerID]
+	}
+
+	if _, providerID, ok := findOIDCProviderConfig(s.cfg.Providers, identifier); ok {
+		return false, s.lastCheck[providerID]
+	}
+
+	return false, 0
+}
+
+func (s *OIDCService) getProviderByIdentifierLocked(identifier string) (*oidcProvider, string, bool) {
+	normalizedIdentifier := normalizeOIDCProviderIdentifier(identifier)
+	for providerID, provider := range s.providers {
+		if normalizeOIDCProviderIdentifier(providerID) == normalizedIdentifier || provider.config.matchesIdentifier(identifier) {
+			return provider, providerID, true
+		}
+	}
+
+	return nil, "", false
+}
+
+func (s *OIDCService) getProviderByIdentifier(identifier string) (*oidcProvider, string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.getProviderByIdentifierLocked(identifier)
+}
+
+func (s *OIDCService) markProviderCheck(providerID string, now int64) int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	lastCheck := s.lastCheck[providerID]
+	if now-lastCheck < 60 {
+		return lastCheck
+	}
+	s.lastCheck[providerID] = now
+	return lastCheck
+}
+
+func (s *OIDCService) setProvider(providerID string, provider *oidcProvider) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.providers[providerID] = provider
+}
+
 func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 	var providers []ProviderInfo
 
@@ -188,17 +326,26 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 		}
 	}
 
-	for _, p := range s.cfg.Providers {
-		displayName := p.DisplayName
+	for _, rawProvider := range s.cfg.Providers {
+		p := rawProvider.normalize()
+		providerID := p.providerID()
+		displayName := p.providerDisplayName()
 		if displayName == "" {
 			displayName = p.Name
 		}
 		info := ProviderInfo{
+			ID:          providerID,
 			Name:        p.Name,
 			DisplayName: displayName,
 			JITEnabled:  p.JITEnabled,
 			IconURL:     p.IconURL,
 			ButtonColor: p.ButtonColor,
+		}
+		ok, lastCheck := s.getProviderInfo(providerID)
+		if ok {
+			info.Active = true
+		} else {
+			info.LastCheck = lastCheck
 		}
 		if id, ok := linkedIdentities[p.IssuerURL]; ok {
 			info.IsLinked = true
@@ -210,23 +357,53 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 	return providers
 }
 
-func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerName string, baseURL string) (string, string, error) {
-	p, ok := s.providers[providerName]
+func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerIdentifier string, baseURL string) (string, string, error) {
+	p, providerID, ok := s.getProviderByIdentifier(providerIdentifier)
 	if !ok {
-		log.Error(ctx, "OIDC provider not found in map", log.String("provider", providerName), log.Int("map_size", len(s.providers)))
-		// Try case-insensitive and space-flexible matching
-		for k, val := range s.providers {
-			log.Debug(ctx, "Available provider in map", log.String("key", k))
-			if strings.EqualFold(strings.ReplaceAll(k, " ", ""), strings.ReplaceAll(providerName, " ", "")) {
-				log.Info(ctx, "Found OIDC provider using flexible matching", log.String("original", providerName), log.String("matched", k))
-				p = val
-				ok = true
-				break
-			}
+		log.Error(ctx, "OIDC provider not found in map", log.String("provider", providerIdentifier))
+		cfgProvider, resolvedProviderID, found := findOIDCProviderConfig(s.cfg.Providers, providerIdentifier)
+		if !found {
+			return "", "", fmt.Errorf("Provider not found")
 		}
-		if !ok {
-			return "", "", fmt.Errorf("OIDC provider not found")
+		providerID = resolvedProviderID
+
+		now := time.Now().Unix()
+		lastCheck := s.markProviderCheck(providerID, now)
+		if remaining := 60 - (now - lastCheck); remaining > 0 {
+			return "", "", fmt.Errorf("Please wait %d seconds before retrying this provider", remaining)
 		}
+		numProviders := len(s.cfg.Providers)
+		redirectURL := "/oauth/oidc/callback"
+		if numProviders > 1 {
+			redirectURL = fmt.Sprintf("/oauth/oidc/callback/%s", providerID)
+		}
+
+		scopes := cfgProvider.ExtraScopes
+		if len(scopes) == 0 {
+			scopes = []string{oidc.ScopeOpenID, "profile", "email"}
+		}
+
+		provider, err := oidc.NewProvider(ctx, cfgProvider.IssuerURL)
+		if err != nil {
+			return "", "", fmt.Errorf("Failed to initialize OIDC provider: %w", err)
+		}
+
+		oauth2Config := oauth2.Config{
+			ClientID:     cfgProvider.ClientID,
+			ClientSecret: cfgProvider.ClientSecret,
+			Endpoint:     provider.Endpoint(),
+			RedirectURL:  redirectURL,
+			Scopes:       scopes,
+		}
+
+		reinitializedProvider := &oidcProvider{
+			config: *cfgProvider,
+			oauth2: oauth2Config,
+			oidc:   provider,
+		}
+
+		s.setProvider(providerID, reinitializedProvider)
+		p = reinitializedProvider
 	}
 
 	// Make redirect URL absolute
@@ -261,8 +438,8 @@ func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerName string, 
 	return authURL, state, nil
 }
 
-func (s *OIDCService) GetLinkAuthorizeURL(ctx context.Context, providerName string, baseURL string, userID int) (string, string, error) {
-	authURL, state, err := s.GetAuthorizeURL(ctx, providerName, baseURL)
+func (s *OIDCService) GetLinkAuthorizeURL(ctx context.Context, providerIdentifier string, baseURL string, userID int) (string, string, error) {
+	authURL, state, err := s.GetAuthorizeURL(ctx, providerIdentifier, baseURL)
 	if err != nil {
 		return "", "", err
 	}
@@ -276,23 +453,13 @@ func (s *OIDCService) GetLinkAuthorizeURL(ctx context.Context, providerName stri
 	return authURL, state, nil
 }
 
-func (s *OIDCService) Callback(ctx context.Context, providerName, code, state string) (string, string, error) {
+func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, state string) (string, string, error) {
 	// Elevate privileges for database operations as this is an unauthenticated flow
 	ctx = contexts.WithUser(ctx, &ent.User{IsOwner: true})
 
-	p, ok := s.providers[providerName]
+	p, _, ok := s.getProviderByIdentifier(providerIdentifier)
 	if !ok {
-		// Try case-insensitive and space-flexible matching
-		for k, val := range s.providers {
-			if strings.EqualFold(strings.ReplaceAll(k, " ", ""), strings.ReplaceAll(providerName, " ", "")) {
-				p = val
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			return "", "", fmt.Errorf("OIDC provider not found: %s", providerName)
-		}
+		return "", "", fmt.Errorf("OIDC provider not found: %s", providerIdentifier)
 	}
 
 	var opts []oauth2.AuthCodeOption
@@ -341,7 +508,7 @@ func (s *OIDCService) Callback(ctx context.Context, providerName, code, state st
 		_ = s.cache.Delete(ctx, "oidc_link_state:"+state)
 		userID, err := strconv.Atoi(string(linkUserIDBytes))
 		if err == nil {
-			err = s.createIdentity(ctx, userID, p.config.IssuerURL, idToken.Subject, claims.Email, p.config.Name)
+			err = s.createIdentity(ctx, userID, p.config.IssuerURL, idToken.Subject, claims.Email, p.config.providerDisplayName())
 			if err != nil {
 				return "", "", fmt.Errorf("failed to link identity: %w", err)
 			}
@@ -474,7 +641,7 @@ func (s *OIDCService) resolveUser(ctx context.Context, p *oidcProvider, subject,
 	}
 
 	// Create the Identity record SECOND
-	err = s.createIdentity(ctx, newUser.ID, p.config.IssuerURL, subject, email, p.config.Name)
+	err = s.createIdentity(ctx, newUser.ID, p.config.IssuerURL, subject, email, p.config.providerDisplayName())
 	if err != nil {
 		// Note: Since this is a newly created user, failing here leaves an orphaned user.
 		// However, with SoftDelete and unique email, re-trying will either hit step 2 or fail.
