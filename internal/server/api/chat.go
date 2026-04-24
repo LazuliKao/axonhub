@@ -209,3 +209,129 @@ func FormatStreamError(_ context.Context, err error) any {
 		"request_id": requestID,
 	}
 }
+
+// WriteResponsesSSEStream writes stream events for the OpenAI Responses API.
+//
+// Key differences from WriteSSEStream:
+//   - Pre-reads the first event before committing SSE headers. If the stream
+//     fails immediately (e.g., upstream EOF before any valid chunk), a standard
+//     JSON error response is returned, which clients can treat as retryable.
+//   - Mid-stream errors emit a Responses API-compatible "error" event instead
+//     of the Chat Completions error format, so strict schema validators (e.g.,
+//     OpenCode's Zod parser) can parse the error without TypeValidationError.
+//   - The iteration loop checks stream.Next() before ctx.Done() to avoid
+//     masking upstream errors with context cancellation.
+func WriteResponsesSSEStream(c *gin.Context, stream streams.Stream[*httpclient.StreamEvent]) {
+	ctx := c.Request.Context()
+
+	// Pre-read: attempt to get the first event before committing SSE response.
+	// If the upstream fails before producing any valid event, we can still
+	// return a proper JSON error (HTTP 502) that clients recognize as retryable.
+	if !stream.Next() {
+		if err := stream.Err(); err != nil {
+			log.Error(ctx, "Responses stream failed before first event", log.Cause(err))
+			writeResponsesJSONError(c, err)
+
+			return
+		}
+
+		// Empty stream, nothing to send.
+		return
+	}
+
+	firstEvent := stream.Current()
+
+	// First event succeeded — commit to SSE response.
+	c.Header("Content-Type", sse.ContentType)
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Writer.Flush()
+
+	// Write the buffered first event.
+	c.SSEvent(firstEvent.Type, firstEvent.Data)
+	log.Debug(ctx, "write stream event", log.Any("event", firstEvent))
+	c.Writer.Flush()
+
+	// Continue streaming remaining events.
+	// We intentionally check stream.Next() as the main loop driver and only
+	// check ctx.Done() between successful events. This ensures that stream
+	// errors (upstream EOF, parse failures) are always handled and emitted
+	// to the client, rather than being masked by a concurrent context cancel.
+	for {
+		if !stream.Next() {
+			if err := stream.Err(); err != nil {
+				log.Error(ctx, "Error in responses stream", log.Cause(err))
+				c.SSEvent("error", formatResponsesSSEError(err))
+			}
+
+			c.Writer.Flush()
+
+			return
+		}
+
+		// Check for client disconnect between events.
+		select {
+		case <-ctx.Done():
+			log.Warn(ctx, "Client disconnected, stopping responses stream")
+
+			return
+		default:
+		}
+
+		cur := stream.Current()
+		c.SSEvent(cur.Type, cur.Data)
+		log.Debug(ctx, "write stream event", log.Any("event", cur))
+		c.Writer.Flush()
+	}
+}
+
+// formatResponsesSSEError formats a stream error as a Responses API "error" event payload.
+// The returned structure matches the OpenAI Responses API error event schema:
+//
+//	{"type": "error", "code": "server_error", "message": "..."}
+func formatResponsesSSEError(err error) json.RawMessage {
+	code := "server_error"
+	message := orchestrator.ExtractErrorMessage(err)
+
+	var respErr *llm.ResponseError
+	if errors.As(err, &respErr) {
+		if respErr.Detail.Code != "" {
+			code = respErr.Detail.Code
+		}
+
+		if respErr.Detail.Message != "" {
+			message = respErr.Detail.Message
+		}
+	}
+
+	data, _ := json.Marshal(map[string]any{
+		"type":    "error",
+		"code":    code,
+		"message": message,
+	})
+
+	return data
+}
+
+// writeResponsesJSONError writes a standard OpenAI-compatible JSON error response
+// for Responses API requests that fail before any SSE event is sent. Because no
+// SSE headers have been committed yet, we can return a proper HTTP error status
+// code, which clients (e.g., OpenCode) interpret as a retryable transport error.
+func writeResponsesJSONError(c *gin.Context, err error) {
+	statusCode := http.StatusBadGateway // 502 for upstream failures
+	errCode := "upstream_error"
+	message := orchestrator.ExtractErrorMessage(err)
+
+	var httpErr *httpclient.Error
+	if errors.As(err, &httpErr) {
+		statusCode = httpErr.StatusCode
+	}
+
+	c.JSON(statusCode, gin.H{
+		"error": gin.H{
+			"type":    "server_error",
+			"code":    errCode,
+			"message": message,
+		},
+	})
+}
