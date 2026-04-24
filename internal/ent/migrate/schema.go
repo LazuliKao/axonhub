@@ -602,7 +602,7 @@ var (
 			{
 				Name:    "request_executions_by_channel_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{RequestExecutionsColumns[18]},
+				Columns: []*schema.Column{RequestExecutionsColumns[18], RequestExecutionsColumns[1]},
 			},
 		},
 	}

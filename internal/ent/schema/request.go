@@ -69,15 +69,18 @@ func (Request) Fields() []ent.Field {
 		field.JSON("request_body", objects.JSONRawMessage{}).
 			Immutable().
 			Annotations(
+				entgql.Skip(entgql.SkipType),
 				entgql.Directives(forceResolver()),
 			),
 		// The final response to the user.
 		// e.g: the provider response with Claude format, but the user expects the response with OpenAI format, the response_body is the OpenAI response format.
 		field.JSON("response_body", objects.JSONRawMessage{}).Optional().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		// The response chunks to the user.
 		field.JSON("response_chunks", []objects.JSONRawMessage{}).Optional().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		field.Int("channel_id").Optional(),

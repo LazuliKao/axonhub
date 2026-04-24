@@ -29,7 +29,7 @@ func (RequestExecution) Indexes() []ent.Index {
 		// Index for Request.executions ordered by created_at.
 		index.Fields("request_id", "created_at").
 			StorageKey("request_executions_by_request_id_created_at"),
-		index.Fields("channel_id").
+		index.Fields("channel_id", "created_at").
 			StorageKey("request_executions_by_channel_id_created_at"),
 	}
 }
@@ -53,16 +53,19 @@ func (RequestExecution) Fields() []ent.Field {
 		// The original request to the provider.
 		// e.g: the user request via OpenAI request format, but the actual request to the provider with Claude format, the request_body is the Claude request format.
 		field.JSON("request_body", objects.JSONRawMessage{}).Immutable().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		// The final response from the provider.
 		// e.g: the provider response with Claude format, and the user expects the response with OpenAI format, the response_body is the Claude response format.
 		field.JSON("response_body", objects.JSONRawMessage{}).Optional().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		// The streaming response chunks from the provider.
 		// e.g: the provider response with Claude format, and the user expects the response with OpenAI format, the response_chunks is the Claude response format.
 		field.JSON("response_chunks", []objects.JSONRawMessage{}).Optional().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		field.String("error_message").Optional(),
