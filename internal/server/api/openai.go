@@ -91,6 +91,7 @@ func NewOpenAIHandlers(params OpenAIHandlersParams) *OpenAIHandlers {
 				params.PromptProtectionRuleService,
 				params.LiveStreamRegistry,
 			),
+			StreamWriter: WriteResponsesSSEStream,
 		},
 		CompactHandlers: &ChatCompletionHandlers{
 			ChatCompletionOrchestrator: orchestrator.NewChatCompletionOrchestrator(
@@ -106,6 +107,7 @@ func NewOpenAIHandlers(params OpenAIHandlersParams) *OpenAIHandlers {
 				params.PromptProtectionRuleService,
 				params.LiveStreamRegistry,
 			),
+			StreamWriter: WriteResponsesSSEStream,
 		},
 		EmbeddingHandlers: &ChatCompletionHandlers{
 			ChatCompletionOrchestrator: orchestrator.NewChatCompletionOrchestrator(
