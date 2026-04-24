@@ -157,8 +157,8 @@ func (t *OutboundTransformer) TransformRequest(ctx context.Context, llmReq *llm.
 	headers.Set("Content-Type", "application/json")
 	headers.Set("Accept", "application/json")
 
-	// Add LiteLLM-style editor headers (required by Copilot).
-	setCopilotHeaders(headers)
+	// LiteLLM-style editor headers required by Copilot
+	SetCopilotHeaders(headers)
 
 	// Add vision header if request contains image content.
 	if hasVisionContent(llmReq) {
@@ -191,8 +191,7 @@ func (t *OutboundTransformer) TransformRequest(ctx context.Context, llmReq *llm.
 	}, nil
 }
 
-// setCopilotHeaders sets the LiteLLM-style editor headers required by Copilot.
-func setCopilotHeaders(headers http.Header) {
+func SetCopilotHeaders(headers http.Header) {
 	headers.Set(EditorVersionHeader, DefaultEditorVersion)
 	headers.Set(EditorPluginVersionHeader, DefaultEditorPluginVersion)
 	headers.Set(UserAgentHeader, DefaultUserAgent)
@@ -586,7 +585,7 @@ func (t *OutboundTransformer) transformResponsesRequest(ctx context.Context, llm
 	}
 
 	// Add Copilot-specific headers
-	setCopilotHeaders(responsesReq.Headers)
+	SetCopilotHeaders(responsesReq.Headers)
 
 	// Add vision header if request contains image content.
 	if hasVisionContent(llmReq) {
