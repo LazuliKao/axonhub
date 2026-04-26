@@ -217,6 +217,10 @@ func (processor *ChatCompletionOrchestrator) Process(ctx context.Context, reques
 		selectCandidates(inbound),
 		injectPrompts(inbound),
 		protectPrompts(inbound),
+		// Response pass-through middlewares run before persistRequest so the raw provider
+		// response is saved when pass-through is enabled.
+		applyPassThroughResponse(outbound),
+		applyPassThroughStream(outbound),
 		persistRequest(inbound),
 	)
 
@@ -228,7 +232,7 @@ func (processor *ChatCompletionOrchestrator) Process(ctx context.Context, reques
 	// Add outbound middlewares (executed after outbound.TransformRequest)
 	middlewares = append(middlewares,
 		// applyPassThroughBody runs first so that override operations can still modify the pass-through body.
-		applyPassThroughBody(outbound),
+		applyPassThroughRequestBody(outbound),
 		applyOverrideRequestBody(outbound),
 		// applyUserAgentPassThrough runs before header overrides to set the initial
 		// User-Agent value (either from client pass-through or default "axonhub/1.0").
@@ -252,6 +256,11 @@ func (processor *ChatCompletionOrchestrator) Process(ctx context.Context, reques
 		withRateLimitTracking(outbound, processor.rateLimitTracker),
 		// Connection tracking middleware for load balancing.
 		withConnectionTracking(outbound, processor.connectionTracker),
+
+		// Response pass-through capture middlewares must be last in the outbound list
+		// so they run first in reverse order (before any other OnOutboundRawResponse/OnOutboundRawStream handlers).
+		captureRawProviderResponse(outbound),
+		captureRawProviderStream(outbound),
 	)
 
 	pipelineOpts = append(pipelineOpts, pipeline.WithMiddlewares(middlewares...))
