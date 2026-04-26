@@ -3516,6 +3516,7 @@ enum ProviderQuotaStatusProviderType @goModel(model: "github.com/looplj/axonhub/
   claudecode
   codex
   github_copilot
+  nanogpt
 }
 """
 ProviderQuotaStatusStatus is enum for the field status
@@ -4166,6 +4167,9 @@ type Request implements Node {
   Request headers
   """
   requestHeaders: JSONRawMessage
+  requestBody: JSONRawMessage! @goField(forceResolver: true)
+  responseBody: JSONRawMessage @goField(forceResolver: true)
+  responseChunks: [JSONRawMessage!] @goField(forceResolver: true)
   channelID: ID
   externalID: String
   status: RequestStatus!
@@ -4305,6 +4309,9 @@ type RequestExecution implements Node {
   externalID: String
   modelID: String!
   format: String!
+  requestBody: JSONRawMessage! @goField(forceResolver: true)
+  responseBody: JSONRawMessage @goField(forceResolver: true)
+  responseChunks: [JSONRawMessage!] @goField(forceResolver: true)
   errorMessage: String
   """
   HTTP status code from the upstream provider

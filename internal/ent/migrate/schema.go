@@ -411,7 +411,7 @@ var (
 		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
 		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
 		{Name: "deleted_at", Type: field.TypeInt, Default: 0},
-		{Name: "provider_type", Type: field.TypeEnum, Enums: []string{"claudecode", "codex", "github_copilot"}},
+		{Name: "provider_type", Type: field.TypeEnum, Enums: []string{"claudecode", "codex", "github_copilot", "nanogpt"}},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"available", "warning", "exhausted", "unknown"}},
 		{Name: "quota_data", Type: field.TypeJSON},
 		{Name: "next_reset_at", Type: field.TypeTime, Nullable: true},
@@ -595,14 +595,9 @@ var (
 				Columns: []*schema.Column{RequestExecutionsColumns[20], RequestExecutionsColumns[12], RequestExecutionsColumns[1]},
 			},
 			{
-				Name:    "request_executions_by_request_id_created_at",
-				Unique:  false,
-				Columns: []*schema.Column{RequestExecutionsColumns[20], RequestExecutionsColumns[1]},
-			},
-			{
 				Name:    "request_executions_by_channel_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{RequestExecutionsColumns[18], RequestExecutionsColumns[1]},
+				Columns: []*schema.Column{RequestExecutionsColumns[18]},
 			},
 		},
 	}

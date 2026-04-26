@@ -25,6 +25,8 @@ type OverrideOperation {
   to: String
   value: String
   condition: String
+  index: Int
+  splat: Boolean
 }
 
 input OverrideOperationInput {
@@ -34,6 +36,8 @@ input OverrideOperationInput {
   to: String
   value: String
   condition: String
+  index: Int
+  splat: Boolean
 }
 
 type TransformOptions {
@@ -656,6 +660,7 @@ type SpanSystemInstruction {
 # Channel Override Template Types
 enum OverrideApplyMode {
   MERGE
+  REPLACE
 }
 
 input ApplyChannelOverrideTemplateInput {
@@ -665,6 +670,16 @@ input ApplyChannelOverrideTemplateInput {
 }
 
 type ApplyChannelOverrideTemplatePayload {
+  success: Boolean!
+  updated: Int!
+  channels: [Channel!]!
+}
+
+input ClearChannelOverrideTemplatesInput {
+  channelIDs: [ID!]!
+}
+
+type ClearChannelOverrideTemplatesPayload {
   success: Boolean!
   updated: Int!
   channels: [Channel!]!
@@ -746,6 +761,9 @@ type Mutation {
   applyChannelOverrideTemplate(
     input: ApplyChannelOverrideTemplateInput!
   ): ApplyChannelOverrideTemplatePayload!
+  clearChannelOverrideTemplates(
+    input: ClearChannelOverrideTemplatesInput!
+  ): ClearChannelOverrideTemplatesPayload!
 
   # Trigger immediate model sync for a channel
   syncChannelModels(channelID: ID!, pattern: String): SyncChannelModelsPayload!

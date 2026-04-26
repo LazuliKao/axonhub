@@ -465,13 +465,14 @@ type ComplexityRoot struct {
 	}
 
 	ChannelSuccessRate struct {
-		ChannelID    func(childComplexity int) int
-		ChannelName  func(childComplexity int) int
-		ChannelType  func(childComplexity int) int
-		FailedCount  func(childComplexity int) int
-		SuccessCount func(childComplexity int) int
-		SuccessRate  func(childComplexity int) int
-		TotalCount   func(childComplexity int) int
+		ChannelDisabled func(childComplexity int) int
+		ChannelID       func(childComplexity int) int
+		ChannelName     func(childComplexity int) int
+		ChannelType     func(childComplexity int) int
+		FailedCount     func(childComplexity int) int
+		SuccessCount    func(childComplexity int) int
+		SuccessRate     func(childComplexity int) int
+		TotalCount      func(childComplexity int) int
 	}
 
 	ChannelTagsModelAssociation struct {
@@ -499,6 +500,12 @@ type ComplexityRoot struct {
 		Message func(childComplexity int) int
 		Success func(childComplexity int) int
 		Targets func(childComplexity int) int
+	}
+
+	ClearChannelOverrideTemplatesPayload struct {
+		Channels func(childComplexity int) int
+		Success  func(childComplexity int) int
+		Updated  func(childComplexity int) int
 	}
 
 	CostItem struct {
@@ -822,6 +829,7 @@ type ComplexityRoot struct {
 		BulkUpdateChannelOrdering            func(childComplexity int, input BulkUpdateChannelOrderingInput) int
 		CheckProviderQuotas                  func(childComplexity int) int
 		ClearCache                           func(childComplexity int, input ClearCacheInput) int
+		ClearChannelOverrideTemplates        func(childComplexity int, input ClearChannelOverrideTemplatesInput) int
 		CompleteAutoDisableChannelOnboarding func(childComplexity int, input CompleteAutoDisableChannelOnboardingInput) int
 		CompleteOnboarding                   func(childComplexity int, input CompleteOnboardingInput) int
 		CompleteSystemModelSettingOnboarding func(childComplexity int, input CompleteSystemModelSettingOnboardingInput) int
@@ -945,8 +953,10 @@ type ComplexityRoot struct {
 	OverrideOperation struct {
 		Condition func(childComplexity int) int
 		From      func(childComplexity int) int
+		Index     func(childComplexity int) int
 		Op        func(childComplexity int) int
 		Path      func(childComplexity int) int
+		Splat     func(childComplexity int) int
 		To        func(childComplexity int) int
 		Value     func(childComplexity int) int
 	}
@@ -1131,7 +1141,7 @@ type ComplexityRoot struct {
 		ChannelOverrideTemplates     func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ChannelOverrideTemplateOrder, where *ent.ChannelOverrideTemplateWhereInput) int
 		ChannelPerformanceStats      func(childComplexity int) int
 		ChannelProbeData             func(childComplexity int, input biz.GetChannelProbeDataInput) int
-		ChannelSuccessRates          func(childComplexity int) int
+		ChannelSuccessRates          func(childComplexity int, timeWindow *string, limit *int) int
 		Channels                     func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ChannelOrder, where *ent.ChannelWhereInput) int
 		CheckForUpdate               func(childComplexity int) int
 		CostStatsByAPIKey            func(childComplexity int, timeWindow *string) int
@@ -1939,6 +1949,7 @@ type MutationResolver interface {
 	UpdateChannelOverrideTemplate(ctx context.Context, id objects.GUID, input ent.UpdateChannelOverrideTemplateInput) (*ent.ChannelOverrideTemplate, error)
 	DeleteChannelOverrideTemplate(ctx context.Context, id objects.GUID) (bool, error)
 	ApplyChannelOverrideTemplate(ctx context.Context, input ApplyChannelOverrideTemplateInput) (*ApplyChannelOverrideTemplatePayload, error)
+	ClearChannelOverrideTemplates(ctx context.Context, input ClearChannelOverrideTemplatesInput) (*ClearChannelOverrideTemplatesPayload, error)
 	SyncChannelModels(ctx context.Context, channelID objects.GUID, pattern *string) (*SyncChannelModelsPayload, error)
 	UpdateMe(ctx context.Context, input UpdateMeInput) (*ent.User, error)
 	UpdateMyPassword(ctx context.Context, input UpdateMyPasswordInput) (bool, error)
@@ -2045,7 +2056,7 @@ type QueryResolver interface {
 	DailyRequestStats(ctx context.Context) ([]*DailyRequestStats, error)
 	TopRequestsProjects(ctx context.Context) ([]*TopRequestsProjects, error)
 	TokenStats(ctx context.Context) (*TokenStats, error)
-	ChannelSuccessRates(ctx context.Context) ([]*ChannelSuccessRate, error)
+	ChannelSuccessRates(ctx context.Context, timeWindow *string, limit *int) ([]*ChannelSuccessRate, error)
 	FastestChannels(ctx context.Context, input FastestChannelsInput) ([]*FastestChannel, error)
 	FastestModels(ctx context.Context, input FastestChannelsInput) ([]*FastestModel, error)
 	ModelPerformanceStats(ctx context.Context) ([]*ModelPerformanceStat, error)
@@ -3584,6 +3595,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ChannelSettings.TransformOptions(childComplexity), true
 
+	case "ChannelSuccessRate.channelDisabled":
+		if e.complexity.ChannelSuccessRate.ChannelDisabled == nil {
+			break
+		}
+
+		return e.complexity.ChannelSuccessRate.ChannelDisabled(childComplexity), true
 	case "ChannelSuccessRate.channelId":
 		if e.complexity.ChannelSuccessRate.ChannelID == nil {
 			break
@@ -3703,6 +3720,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ClearCachePayload.Targets(childComplexity), true
+
+	case "ClearChannelOverrideTemplatesPayload.channels":
+		if e.complexity.ClearChannelOverrideTemplatesPayload.Channels == nil {
+			break
+		}
+
+		return e.complexity.ClearChannelOverrideTemplatesPayload.Channels(childComplexity), true
+	case "ClearChannelOverrideTemplatesPayload.success":
+		if e.complexity.ClearChannelOverrideTemplatesPayload.Success == nil {
+			break
+		}
+
+		return e.complexity.ClearChannelOverrideTemplatesPayload.Success(childComplexity), true
+	case "ClearChannelOverrideTemplatesPayload.updated":
+		if e.complexity.ClearChannelOverrideTemplatesPayload.Updated == nil {
+			break
+		}
+
+		return e.complexity.ClearChannelOverrideTemplatesPayload.Updated(childComplexity), true
 
 	case "CostItem.itemCode":
 		if e.complexity.CostItem.ItemCode == nil {
@@ -5038,6 +5074,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.ClearCache(childComplexity, args["input"].(ClearCacheInput)), true
+	case "Mutation.clearChannelOverrideTemplates":
+		if e.complexity.Mutation.ClearChannelOverrideTemplates == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_clearChannelOverrideTemplates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ClearChannelOverrideTemplates(childComplexity, args["input"].(ClearChannelOverrideTemplatesInput)), true
 	case "Mutation.completeAutoDisableChannelOnboarding":
 		if e.complexity.Mutation.CompleteAutoDisableChannelOnboarding == nil {
 			break
@@ -5997,6 +6044,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OverrideOperation.From(childComplexity), true
+	case "OverrideOperation.index":
+		if e.complexity.OverrideOperation.Index == nil {
+			break
+		}
+
+		return e.complexity.OverrideOperation.Index(childComplexity), true
 	case "OverrideOperation.op":
 		if e.complexity.OverrideOperation.Op == nil {
 			break
@@ -6009,6 +6062,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.OverrideOperation.Path(childComplexity), true
+	case "OverrideOperation.splat":
+		if e.complexity.OverrideOperation.Splat == nil {
+			break
+		}
+
+		return e.complexity.OverrideOperation.Splat(childComplexity), true
 	case "OverrideOperation.to":
 		if e.complexity.OverrideOperation.To == nil {
 			break
@@ -6790,7 +6849,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.complexity.Query.ChannelSuccessRates(childComplexity), true
+		args, err := ec.field_Query_channelSuccessRates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ChannelSuccessRates(childComplexity, args["timeWindow"].(*string), args["limit"].(*int)), true
 	case "Query.channels":
 		if e.complexity.Query.Channels == nil {
 			break
@@ -9886,6 +9950,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputChannelWhereInput,
 		ec.unmarshalInputCleanupOptionInput,
 		ec.unmarshalInputClearCacheInput,
+		ec.unmarshalInputClearChannelOverrideTemplatesInput,
 		ec.unmarshalInputCompleteAutoDisableChannelOnboardingInput,
 		ec.unmarshalInputCompleteOnboardingInput,
 		ec.unmarshalInputCompleteSystemModelSettingOnboardingInput,
@@ -10662,6 +10727,17 @@ func (ec *executionContext) field_Mutation_clearCache_args(ctx context.Context, 
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNClearCacheInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐClearCacheInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_clearChannelOverrideTemplates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNClearChannelOverrideTemplatesInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐClearChannelOverrideTemplatesInput)
 	if err != nil {
 		return nil, err
 	}
@@ -12011,6 +12087,22 @@ func (ec *executionContext) field_Query_channelProbeData_args(ctx context.Contex
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_channelSuccessRates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "timeWindow", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["timeWindow"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
 	return args, nil
 }
 
@@ -19014,6 +19106,10 @@ func (ec *executionContext) fieldContext_ChannelOverrideTemplate_headerOverrideO
 				return ec.fieldContext_OverrideOperation_value(ctx, field)
 			case "condition":
 				return ec.fieldContext_OverrideOperation_condition(ctx, field)
+			case "index":
+				return ec.fieldContext_OverrideOperation_index(ctx, field)
+			case "splat":
+				return ec.fieldContext_OverrideOperation_splat(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OverrideOperation", field.Name)
 		},
@@ -19057,6 +19153,10 @@ func (ec *executionContext) fieldContext_ChannelOverrideTemplate_bodyOverrideOpe
 				return ec.fieldContext_OverrideOperation_value(ctx, field)
 			case "condition":
 				return ec.fieldContext_OverrideOperation_condition(ctx, field)
+			case "index":
+				return ec.fieldContext_OverrideOperation_index(ctx, field)
+			case "splat":
+				return ec.fieldContext_OverrideOperation_splat(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OverrideOperation", field.Name)
 		},
@@ -20494,6 +20594,10 @@ func (ec *executionContext) fieldContext_ChannelSettings_headerOverrideOperation
 				return ec.fieldContext_OverrideOperation_value(ctx, field)
 			case "condition":
 				return ec.fieldContext_OverrideOperation_condition(ctx, field)
+			case "index":
+				return ec.fieldContext_OverrideOperation_index(ctx, field)
+			case "splat":
+				return ec.fieldContext_OverrideOperation_splat(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OverrideOperation", field.Name)
 		},
@@ -20537,6 +20641,10 @@ func (ec *executionContext) fieldContext_ChannelSettings_bodyOverrideOperations(
 				return ec.fieldContext_OverrideOperation_value(ctx, field)
 			case "condition":
 				return ec.fieldContext_OverrideOperation_condition(ctx, field)
+			case "index":
+				return ec.fieldContext_OverrideOperation_index(ctx, field)
+			case "splat":
+				return ec.fieldContext_OverrideOperation_splat(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OverrideOperation", field.Name)
 		},
@@ -20721,6 +20829,35 @@ func (ec *executionContext) fieldContext_ChannelSuccessRate_channelType(_ contex
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ChannelSuccessRate_channelDisabled(ctx context.Context, field graphql.CollectedField, obj *ChannelSuccessRate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ChannelSuccessRate_channelDisabled,
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelDisabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ChannelSuccessRate_channelDisabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChannelSuccessRate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -21185,6 +21322,149 @@ func (ec *executionContext) fieldContext_ClearCachePayload_targets(_ context.Con
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DiagnosticsTarget does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ClearChannelOverrideTemplatesPayload_success(ctx context.Context, field graphql.CollectedField, obj *ClearChannelOverrideTemplatesPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ClearChannelOverrideTemplatesPayload_success,
+		func(ctx context.Context) (any, error) {
+			return obj.Success, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ClearChannelOverrideTemplatesPayload_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ClearChannelOverrideTemplatesPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ClearChannelOverrideTemplatesPayload_updated(ctx context.Context, field graphql.CollectedField, obj *ClearChannelOverrideTemplatesPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ClearChannelOverrideTemplatesPayload_updated,
+		func(ctx context.Context) (any, error) {
+			return obj.Updated, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ClearChannelOverrideTemplatesPayload_updated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ClearChannelOverrideTemplatesPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ClearChannelOverrideTemplatesPayload_channels(ctx context.Context, field graphql.CollectedField, obj *ClearChannelOverrideTemplatesPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ClearChannelOverrideTemplatesPayload_channels,
+		func(ctx context.Context) (any, error) {
+			return obj.Channels, nil
+		},
+		nil,
+		ec.marshalNChannel2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐChannelᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ClearChannelOverrideTemplatesPayload_channels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ClearChannelOverrideTemplatesPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Channel_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Channel_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Channel_updatedAt(ctx, field)
+			case "type":
+				return ec.fieldContext_Channel_type(ctx, field)
+			case "baseURL":
+				return ec.fieldContext_Channel_baseURL(ctx, field)
+			case "name":
+				return ec.fieldContext_Channel_name(ctx, field)
+			case "status":
+				return ec.fieldContext_Channel_status(ctx, field)
+			case "supportedModels":
+				return ec.fieldContext_Channel_supportedModels(ctx, field)
+			case "manualModels":
+				return ec.fieldContext_Channel_manualModels(ctx, field)
+			case "autoSyncSupportedModels":
+				return ec.fieldContext_Channel_autoSyncSupportedModels(ctx, field)
+			case "autoSyncModelPattern":
+				return ec.fieldContext_Channel_autoSyncModelPattern(ctx, field)
+			case "tags":
+				return ec.fieldContext_Channel_tags(ctx, field)
+			case "defaultTestModel":
+				return ec.fieldContext_Channel_defaultTestModel(ctx, field)
+			case "policies":
+				return ec.fieldContext_Channel_policies(ctx, field)
+			case "settings":
+				return ec.fieldContext_Channel_settings(ctx, field)
+			case "orderingWeight":
+				return ec.fieldContext_Channel_orderingWeight(ctx, field)
+			case "errorMessage":
+				return ec.fieldContext_Channel_errorMessage(ctx, field)
+			case "remark":
+				return ec.fieldContext_Channel_remark(ctx, field)
+			case "requests":
+				return ec.fieldContext_Channel_requests(ctx, field)
+			case "executions":
+				return ec.fieldContext_Channel_executions(ctx, field)
+			case "usageLogs":
+				return ec.fieldContext_Channel_usageLogs(ctx, field)
+			case "channelProbes":
+				return ec.fieldContext_Channel_channelProbes(ctx, field)
+			case "channelModelPrices":
+				return ec.fieldContext_Channel_channelModelPrices(ctx, field)
+			case "providerQuotaStatus":
+				return ec.fieldContext_Channel_providerQuotaStatus(ctx, field)
+			case "allModelEntries":
+				return ec.fieldContext_Channel_allModelEntries(ctx, field)
+			case "credentials":
+				return ec.fieldContext_Channel_credentials(ctx, field)
+			case "disabledAPIKeys":
+				return ec.fieldContext_Channel_disabledAPIKeys(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Channel", field.Name)
 		},
 	}
 	return fc, nil
@@ -29181,6 +29461,55 @@ func (ec *executionContext) fieldContext_Mutation_applyChannelOverrideTemplate(c
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_clearChannelOverrideTemplates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_clearChannelOverrideTemplates,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().ClearChannelOverrideTemplates(ctx, fc.Args["input"].(ClearChannelOverrideTemplatesInput))
+		},
+		nil,
+		ec.marshalNClearChannelOverrideTemplatesPayload2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐClearChannelOverrideTemplatesPayload,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_clearChannelOverrideTemplates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_ClearChannelOverrideTemplatesPayload_success(ctx, field)
+			case "updated":
+				return ec.fieldContext_ClearChannelOverrideTemplatesPayload_updated(ctx, field)
+			case "channels":
+				return ec.fieldContext_ClearChannelOverrideTemplatesPayload_channels(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ClearChannelOverrideTemplatesPayload", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_clearChannelOverrideTemplates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_syncChannelModels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -32592,6 +32921,64 @@ func (ec *executionContext) fieldContext_OverrideOperation_condition(_ context.C
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OverrideOperation_index(ctx context.Context, field graphql.CollectedField, obj *objects.OverrideOperation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OverrideOperation_index,
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		ec.marshalOInt2ᚖint,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OverrideOperation_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OverrideOperation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OverrideOperation_splat(ctx context.Context, field graphql.CollectedField, obj *objects.OverrideOperation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_OverrideOperation_splat,
+		func(ctx context.Context) (any, error) {
+			return obj.Splat, nil
+		},
+		nil,
+		ec.marshalOBoolean2ᚖbool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_OverrideOperation_splat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OverrideOperation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -37526,7 +37913,8 @@ func (ec *executionContext) _Query_channelSuccessRates(ctx context.Context, fiel
 		field,
 		ec.fieldContext_Query_channelSuccessRates,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Query().ChannelSuccessRates(ctx)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ChannelSuccessRates(ctx, fc.Args["timeWindow"].(*string), fc.Args["limit"].(*int))
 		},
 		nil,
 		ec.marshalNChannelSuccessRate2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐChannelSuccessRateᚄ,
@@ -37535,7 +37923,7 @@ func (ec *executionContext) _Query_channelSuccessRates(ctx context.Context, fiel
 	)
 }
 
-func (ec *executionContext) fieldContext_Query_channelSuccessRates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_channelSuccessRates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -37549,6 +37937,8 @@ func (ec *executionContext) fieldContext_Query_channelSuccessRates(_ context.Con
 				return ec.fieldContext_ChannelSuccessRate_channelName(ctx, field)
 			case "channelType":
 				return ec.fieldContext_ChannelSuccessRate_channelType(ctx, field)
+			case "channelDisabled":
+				return ec.fieldContext_ChannelSuccessRate_channelDisabled(ctx, field)
 			case "successCount":
 				return ec.fieldContext_ChannelSuccessRate_successCount(ctx, field)
 			case "failedCount":
@@ -37560,6 +37950,17 @@ func (ec *executionContext) fieldContext_Query_channelSuccessRates(_ context.Con
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ChannelSuccessRate", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_channelSuccessRates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -59419,6 +59820,33 @@ func (ec *executionContext) unmarshalInputClearCacheInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputClearChannelOverrideTemplatesInput(ctx context.Context, obj any) (ClearChannelOverrideTemplatesInput, error) {
+	var it ClearChannelOverrideTemplatesInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"channelIDs"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "channelIDs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelIDs"))
+			data, err := ec.unmarshalNID2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUIDᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ChannelIDs = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCompleteAutoDisableChannelOnboardingInput(ctx context.Context, obj any) (CompleteAutoDisableChannelOnboardingInput, error) {
 	var it CompleteAutoDisableChannelOnboardingInput
 	asMap := map[string]any{}
@@ -64161,7 +64589,7 @@ func (ec *executionContext) unmarshalInputOverrideOperationInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"op", "path", "from", "to", "value", "condition"}
+	fieldsInOrder := [...]string{"op", "path", "from", "to", "value", "condition", "index", "splat"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -64210,6 +64638,20 @@ func (ec *executionContext) unmarshalInputOverrideOperationInput(ctx context.Con
 				return it, err
 			}
 			it.Condition = data
+		case "index":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("index"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Index = data
+		case "splat":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("splat"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Splat = data
 		}
 	}
 
@@ -81956,6 +82398,11 @@ func (ec *executionContext) _ChannelSuccessRate(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "channelDisabled":
+			out.Values[i] = ec._ChannelSuccessRate_channelDisabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "successCount":
 			out.Values[i] = ec._ChannelSuccessRate_successCount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -82203,6 +82650,55 @@ func (ec *executionContext) _ClearCachePayload(ctx context.Context, sel ast.Sele
 			}
 		case "targets":
 			out.Values[i] = ec._ClearCachePayload_targets(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var clearChannelOverrideTemplatesPayloadImplementors = []string{"ClearChannelOverrideTemplatesPayload"}
+
+func (ec *executionContext) _ClearChannelOverrideTemplatesPayload(ctx context.Context, sel ast.SelectionSet, obj *ClearChannelOverrideTemplatesPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, clearChannelOverrideTemplatesPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ClearChannelOverrideTemplatesPayload")
+		case "success":
+			out.Values[i] = ec._ClearChannelOverrideTemplatesPayload_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updated":
+			out.Values[i] = ec._ClearChannelOverrideTemplatesPayload_updated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "channels":
+			out.Values[i] = ec._ClearChannelOverrideTemplatesPayload_channels(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -84893,6 +85389,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "clearChannelOverrideTemplates":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_clearChannelOverrideTemplates(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "syncChannelModels":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_syncChannelModels(ctx, field)
@@ -85697,6 +86200,10 @@ func (ec *executionContext) _OverrideOperation(ctx context.Context, sel ast.Sele
 			out.Values[i] = ec._OverrideOperation_value(ctx, field, obj)
 		case "condition":
 			out.Values[i] = ec._OverrideOperation_condition(ctx, field, obj)
+		case "index":
+			out.Values[i] = ec._OverrideOperation_index(ctx, field, obj)
+		case "splat":
+			out.Values[i] = ec._OverrideOperation_splat(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -97353,6 +97860,25 @@ func (ec *executionContext) marshalNClearCachePayload2ᚖgithubᚗcomᚋlooplj�
 		return graphql.Null
 	}
 	return ec._ClearCachePayload(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNClearChannelOverrideTemplatesInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐClearChannelOverrideTemplatesInput(ctx context.Context, v any) (ClearChannelOverrideTemplatesInput, error) {
+	res, err := ec.unmarshalInputClearChannelOverrideTemplatesInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNClearChannelOverrideTemplatesPayload2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐClearChannelOverrideTemplatesPayload(ctx context.Context, sel ast.SelectionSet, v ClearChannelOverrideTemplatesPayload) graphql.Marshaler {
+	return ec._ClearChannelOverrideTemplatesPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNClearChannelOverrideTemplatesPayload2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐClearChannelOverrideTemplatesPayload(ctx context.Context, sel ast.SelectionSet, v *ClearChannelOverrideTemplatesPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ClearChannelOverrideTemplatesPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNCompleteAutoDisableChannelOnboardingInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐCompleteAutoDisableChannelOnboardingInput(ctx context.Context, v any) (CompleteAutoDisableChannelOnboardingInput, error) {

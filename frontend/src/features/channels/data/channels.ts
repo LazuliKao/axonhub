@@ -603,6 +603,8 @@ const QUERY_CHANNELS_QUERY = `
               to
               value
               condition
+              index
+              splat
             }
             headerOverrideOperations {
               op
@@ -611,6 +613,8 @@ const QUERY_CHANNELS_QUERY = `
               to
               value
               condition
+              index
+              splat
             }
             proxy {
               type
