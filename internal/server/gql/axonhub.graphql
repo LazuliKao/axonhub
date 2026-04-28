@@ -859,3 +859,15 @@ extend type Query {
   """
   apiKeyQuotaUsages(apiKeyId: ID!): [APIKeyProfileQuotaUsage!]!
 }
+
+extend type Request {
+  requestBody: Any @goField(forceResolver: true)
+  responseBody: Any @goField(forceResolver: true)
+  responseChunks: [Any!] @goField(forceResolver: true)
+}
+
+extend type RequestExecution {
+  requestBody: Any @goField(forceResolver: true)
+  responseBody: Any @goField(forceResolver: true)
+  responseChunks: [Any!] @goField(forceResolver: true)
+}

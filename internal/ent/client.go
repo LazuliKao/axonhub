@@ -2660,7 +2660,8 @@ func (c *RequestClient) Hooks() []Hook {
 
 // Interceptors returns the client interceptors.
 func (c *RequestClient) Interceptors() []Interceptor {
-	return c.inters.Request
+	inters := c.inters.Request
+	return append(inters[:len(inters):len(inters)], request.Interceptors[:]...)
 }
 
 func (c *RequestClient) mutate(ctx context.Context, m *RequestMutation) (Value, error) {
@@ -2841,7 +2842,8 @@ func (c *RequestExecutionClient) Hooks() []Hook {
 
 // Interceptors returns the client interceptors.
 func (c *RequestExecutionClient) Interceptors() []Interceptor {
-	return c.inters.RequestExecution
+	inters := c.inters.RequestExecution
+	return append(inters[:len(inters):len(inters)], requestexecution.Interceptors[:]...)
 }
 
 func (c *RequestExecutionClient) mutate(ctx context.Context, m *RequestExecutionMutation) (Value, error) {

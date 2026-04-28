@@ -1,8 +1,11 @@
 package schema
 
 import (
+	"context"
+
 	"entgo.io/contrib/entgql"
 	"entgo.io/ent"
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
@@ -73,15 +76,18 @@ func (Request) Fields() []ent.Field {
 		field.JSON("request_body", objects.JSONRawMessage{}).
 			Immutable().
 			Annotations(
+				entgql.Skip(entgql.SkipType),
 				entgql.Directives(forceResolver()),
 			),
 		// The final response to the user.
 		// e.g: the provider response with Claude format, but the user expects the response with OpenAI format, the response_body is the OpenAI response format.
 		field.JSON("response_body", objects.JSONRawMessage{}).Optional().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		// The response chunks to the user.
 		field.JSON("response_chunks", []objects.JSONRawMessage{}).Optional().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		field.Int("channel_id").Optional(),
@@ -167,6 +173,42 @@ func (Request) Annotations() []schema.Annotation {
 		entgql.QueryField(),
 		entgql.RelayConnection(),
 		entgql.Mutations(entgql.MutationCreate(), entgql.MutationUpdate()),
+	}
+}
+
+func (Request) Interceptors() []ent.Interceptor {
+	return []ent.Interceptor{
+		ent.InterceptFunc(func(next ent.Querier) ent.Querier {
+			return ent.QuerierFunc(func(ctx context.Context, query ent.Query) (ent.Value, error) {
+				// Strip large JSON fields from default SELECT * to prevent MySQL filesort Out-Of-Memory errors
+				if q, ok := query.(interface {
+					SelectedColumns() []string
+					Select(fields ...string) *sql.Selector
+				}); ok {
+					cols := q.SelectedColumns()
+					if len(cols) == 0 {
+						// This is a SELECT * query (like GraphQL collection logic falling back due to unknown fields)
+						// We must explicitly select all fields EXCEPT the large JSON blobs.
+						// We use a sql modifier to replace the select list on the underlying builder.
+						if modifier, ok := query.(interface {
+							Modify(modifiers ...func(s *sql.Selector))
+						}); ok {
+							modifier.Modify(func(s *sql.Selector) {
+								s.Select(
+									"id", "created_at", "updated_at",
+									"api_key_id", "project_id", "trace_id", "data_storage_id",
+									"source", "model_id", "reasoning_effort", "format", "request_headers",
+									"channel_id", "external_id", "status", "stream", "client_ip",
+									"metrics_latency_ms", "metrics_first_token_latency_ms", "metrics_reasoning_duration_ms",
+									"content_saved", "content_storage_id", "content_storage_key", "content_saved_at",
+								)
+							})
+						}
+					}
+				}
+				return next.Query(ctx, query)
+			})
+		}),
 	}
 }
 

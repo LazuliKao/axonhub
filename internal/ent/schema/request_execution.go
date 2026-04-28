@@ -1,8 +1,11 @@
 package schema
 
 import (
+	"context"
+
 	"entgo.io/contrib/entgql"
 	"entgo.io/ent"
+	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
@@ -26,8 +29,12 @@ func (RequestExecution) Indexes() []ent.Index {
 		// Index for window function: find latest execution per request
 		index.Fields("request_id", "status", "created_at").
 			StorageKey("request_executions_by_request_id_status_created_at"),
-		index.Fields("channel_id").
+		index.Fields("request_id", "created_at").
+			StorageKey("request_executions_by_request_id_created_at"),
+		index.Fields("channel_id", "created_at").
 			StorageKey("request_executions_by_channel_id_created_at"),
+		index.Fields("created_at").
+			StorageKey("request_executions_by_created_at"),
 	}
 }
 
@@ -50,16 +57,19 @@ func (RequestExecution) Fields() []ent.Field {
 		// The original request to the provider.
 		// e.g: the user request via OpenAI request format, but the actual request to the provider with Claude format, the request_body is the Claude request format.
 		field.JSON("request_body", objects.JSONRawMessage{}).Immutable().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		// The final response from the provider.
 		// e.g: the provider response with Claude format, and the user expects the response with OpenAI format, the response_body is the Claude response format.
 		field.JSON("response_body", objects.JSONRawMessage{}).Optional().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		// The streaming response chunks from the provider.
 		// e.g: the provider response with Claude format, and the user expects the response with OpenAI format, the response_chunks is the Claude response format.
 		field.JSON("response_chunks", []objects.JSONRawMessage{}).Optional().Annotations(
+			entgql.Skip(entgql.SkipType),
 			entgql.Directives(forceResolver()),
 		),
 		field.String("error_message").Optional(),
@@ -109,5 +119,41 @@ func (RequestExecution) Edges() []ent.Edge {
 func (RequestExecution) Annotations() []schema.Annotation {
 	return []schema.Annotation{
 		entgql.RelayConnection(),
+	}
+}
+
+func (RequestExecution) Interceptors() []ent.Interceptor {
+	return []ent.Interceptor{
+		ent.InterceptFunc(func(next ent.Querier) ent.Querier {
+			return ent.QuerierFunc(func(ctx context.Context, query ent.Query) (ent.Value, error) {
+				// Strip large JSON fields from default SELECT * to prevent MySQL filesort Out-Of-Memory errors
+				if q, ok := query.(interface {
+					SelectedColumns() []string
+					Select(fields ...string) *sql.Selector
+				}); ok {
+					cols := q.SelectedColumns()
+					if len(cols) == 0 {
+						// This is a SELECT * query (like GraphQL collection logic falling back due to unknown fields)
+						// We must explicitly select all fields EXCEPT the large JSON blobs.
+						// We use a sql modifier to replace the select list on the underlying builder.
+						if modifier, ok := query.(interface {
+							Modify(modifiers ...func(s *sql.Selector))
+						}); ok {
+							modifier.Modify(func(s *sql.Selector) {
+								s.Select(
+									"id", "created_at", "updated_at",
+									"project_id", "request_id", "channel_id", "data_storage_id",
+									"external_id", "model_id", "format",
+									"error_message", "response_status_code", "status", "stream",
+									"metrics_latency_ms", "metrics_first_token_latency_ms", "metrics_reasoning_duration_ms",
+									"request_headers",
+								)
+							})
+						}
+					}
+				}
+				return next.Query(ctx, query)
+			})
+		}),
 	}
 }

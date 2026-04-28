@@ -504,6 +504,8 @@ func init() {
 			return next.Mutate(ctx, m)
 		})
 	}
+	requestInters := schema.Request{}.Interceptors()
+	request.Interceptors[0] = requestInters[0]
 	requestMixinFields0 := requestMixin[0].Fields()
 	_ = requestMixinFields0
 	requestFields := schema.Request{}.Fields()
@@ -543,6 +545,8 @@ func init() {
 	// request.DefaultContentSaved holds the default value on creation for the content_saved field.
 	request.DefaultContentSaved = requestDescContentSaved.Default.(bool)
 	requestexecutionMixin := schema.RequestExecution{}.Mixin()
+	requestexecutionInters := schema.RequestExecution{}.Interceptors()
+	requestexecution.Interceptors[0] = requestexecutionInters[0]
 	requestexecutionMixinFields0 := requestexecutionMixin[0].Fields()
 	_ = requestexecutionMixinFields0
 	requestexecutionFields := schema.RequestExecution{}.Fields()
