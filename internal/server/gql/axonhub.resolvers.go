@@ -17,6 +17,7 @@ import (
 	"github.com/looplj/axonhub/internal/ent/project"
 	"github.com/looplj/axonhub/internal/ent/request"
 	"github.com/looplj/axonhub/internal/ent/user"
+	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/internal/scopes"
 	"github.com/looplj/axonhub/internal/server/biz"
@@ -68,6 +69,38 @@ func (r *channelResolver) DisabledAPIKeys(ctx context.Context, obj *ent.Channel)
 	}
 
 	return lo.ToSlicePtr(obj.DisabledAPIKeys), nil
+}
+
+// LiveLimiterStats is the resolver for the liveLimiterStats field.
+func (r *channelResolver) LiveLimiterStats(ctx context.Context, obj *ent.Channel) (*ChannelLimiterStats, error) {
+	if r.channelLimiterManager == nil || obj == nil {
+		return nil, nil
+	}
+
+	if obj.Settings == nil || obj.Settings.RateLimit == nil {
+		return nil, nil
+	}
+
+	rl := obj.Settings.RateLimit
+	if rl.MaxConcurrent == nil || *rl.MaxConcurrent <= 0 {
+		return nil, nil
+	}
+
+	queueSize := 0
+	if rl.QueueSize != nil && *rl.QueueSize > 0 {
+		queueSize = int(*rl.QueueSize)
+	}
+
+	// Stats returns ok=false until the first request creates the limiter; in
+	// that case in-flight / waiting are simply 0.
+	inFlight, waiting, _ := r.channelLimiterManager.Stats(obj.ID)
+
+	return &ChannelLimiterStats{
+		InFlight:  inFlight,
+		Waiting:   waiting,
+		Capacity:  int(*rl.MaxConcurrent),
+		QueueSize: queueSize,
+	}, nil
 }
 
 // HeaderOverrideOperations is the resolver for the headerOverrideOperations field.
@@ -710,6 +743,90 @@ func (r *queryResolver) APIKeyQuotaUsages(ctx context.Context, apiKeyID objects.
 	}
 
 	return result, nil
+}
+
+// RequestBody is the resolver for the requestBody field.
+func (r *requestResolver) RequestBody(ctx context.Context, obj *ent.Request) (any, error) {
+	value, err := r.requestService.LoadRequestBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load request body", log.Cause(err), log.Int("request_id", obj.ID))
+		return nil, fmt.Errorf("failed to load request body: %w", err)
+	}
+
+	return value, nil
+}
+
+// ResponseBody is the resolver for the responseBody field.
+func (r *requestResolver) ResponseBody(ctx context.Context, obj *ent.Request) (any, error) {
+	value, err := r.requestService.LoadResponseBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load request response body", log.Cause(err), log.Int("request_id", obj.ID))
+		return nil, fmt.Errorf("failed to load response body: %w", err)
+	}
+
+	return value, nil
+}
+
+// ResponseChunks is the resolver for the responseChunks field.
+func (r *requestResolver) ResponseChunks(ctx context.Context, obj *ent.Request) ([]any, error) {
+	value, err := r.requestService.LoadResponseChunks(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load request response chunks", log.Cause(err), log.Int("request_id", obj.ID))
+
+		// GraphQL requires slices to be non-nil; return empty slice with error
+		return nil, fmt.Errorf("failed to load response chunks: %w", err)
+	}
+
+	if value == nil {
+		return nil, nil
+	}
+
+	res := make([]any, len(value))
+	for i, v := range value {
+		res[i] = v
+	}
+	return res, nil
+}
+
+// RequestBody is the resolver for the requestBody field.
+func (r *requestExecutionResolver) RequestBody(ctx context.Context, obj *ent.RequestExecution) (any, error) {
+	value, err := r.requestService.LoadRequestExecutionRequestBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load execution request body", log.Cause(err), log.Int("request_execution_id", obj.ID))
+		return nil, fmt.Errorf("failed to load request body: %w", err)
+	}
+
+	return value, nil
+}
+
+// ResponseBody is the resolver for the responseBody field.
+func (r *requestExecutionResolver) ResponseBody(ctx context.Context, obj *ent.RequestExecution) (any, error) {
+	value, err := r.requestService.LoadRequestExecutionResponseBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load execution response body", log.Cause(err), log.Int("request_execution_id", obj.ID))
+		return nil, fmt.Errorf("failed to load response body: %w", err)
+	}
+
+	return value, nil
+}
+
+// ResponseChunks is the resolver for the responseChunks field.
+func (r *requestExecutionResolver) ResponseChunks(ctx context.Context, obj *ent.RequestExecution) ([]any, error) {
+	value, err := r.requestService.LoadRequestExecutionResponseChunks(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load execution response chunks", log.Cause(err), log.Int("request_execution_id", obj.ID))
+		return nil, fmt.Errorf("failed to load response chunks: %w", err)
+	}
+
+	if value == nil {
+		return nil, nil
+	}
+
+	res := make([]any, len(value))
+	for i, v := range value {
+		res[i] = v
+	}
+	return res, nil
 }
 
 // ID is the resolver for the id field.
