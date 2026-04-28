@@ -636,6 +636,8 @@ const QUERY_CHANNELS_QUERY = `
               rpm
               tpm
               maxConcurrent
+              queueSize
+              queueTimeoutMs
             }
           }
           orderingWeight
@@ -646,6 +648,12 @@ const QUERY_CHANNELS_QUERY = `
             disabledAt
             errorCode
             reason
+          }
+          liveLimiterStats {
+            inFlight
+            waiting
+            capacity
+            queueSize
           }
         }
         cursor
@@ -755,6 +763,10 @@ export function useQueryChannels(
         throw error;
       }
     },
+    // Poll so the live limiter snapshot (in-flight / queue) stays roughly fresh.
+    // 5s is light traffic; pause when the tab is hidden.
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
   });
 }
 

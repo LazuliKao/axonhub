@@ -180,6 +180,10 @@ func (s *RequestService) CreateRequest(
 		mut = mut.SetClientIP(httpRequest.ClientIP)
 	}
 
+	if llmRequest.ReasoningEffort != "" {
+		mut = mut.SetReasoningEffort(llmRequest.ReasoningEffort)
+	}
+
 	// Determine if we should store in database or external storage
 	useExternalStorage := storeRequestBody && s.shouldUseExternalStorage(ctx, dataStorage)
 
@@ -989,11 +993,15 @@ func (s *RequestService) LoadRequestBody(ctx context.Context, req *ent.Request) 
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
-		if req.RequestBody == nil {
+		if req.RequestBody != nil {
+			return req.RequestBody, nil
+		}
+		
+		dbReq, err := s.db.Request.Query().Where(request.IDEQ(req.ID)).Select(request.FieldRequestBody).Only(ctx)
+		if err != nil || dbReq.RequestBody == nil {
 			return xjson.EmptyJSONRawMessage, nil
 		}
-
-		return req.RequestBody, nil
+		return dbReq.RequestBody, nil
 	}
 
 	key := GenerateRequestBodyKey(req.ProjectID, req.ID)
@@ -1028,11 +1036,15 @@ func (s *RequestService) LoadResponseBody(ctx context.Context, req *ent.Request)
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
-		if req.ResponseBody == nil {
-			return xjson.EmptyJSONRawMessage, nil
+		if req.ResponseBody != nil {
+			return req.ResponseBody, nil
 		}
 
-		return req.ResponseBody, nil
+		dbReq, err := s.db.Request.Query().Where(request.IDEQ(req.ID)).Select(request.FieldResponseBody).Only(ctx)
+		if err != nil || dbReq.ResponseBody == nil {
+			return xjson.EmptyJSONRawMessage, nil
+		}
+		return dbReq.ResponseBody, nil
 	}
 
 	key := GenerateResponseBodyKey(req.ProjectID, req.ID)
@@ -1071,7 +1083,15 @@ func (s *RequestService) LoadResponseChunks(ctx context.Context, req *ent.Reques
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
-		return req.ResponseChunks, nil
+		if req.ResponseChunks != nil {
+			return req.ResponseChunks, nil
+		}
+
+		dbReq, err := s.db.Request.Query().Where(request.IDEQ(req.ID)).Select(request.FieldResponseChunks).Only(ctx)
+		if err != nil || dbReq.ResponseChunks == nil {
+			return []objects.JSONRawMessage{}, nil
+		}
+		return dbReq.ResponseChunks, nil
 	}
 
 	key := GenerateResponseChunksKey(req.ProjectID, req.ID)
@@ -1109,11 +1129,15 @@ func (s *RequestService) LoadRequestExecutionRequestBody(ctx context.Context, ex
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
-		if exec.RequestBody == nil {
-			return xjson.EmptyJSONRawMessage, nil
+		if exec.RequestBody != nil {
+			return exec.RequestBody, nil
 		}
 
-		return exec.RequestBody, nil
+		dbExec, err := s.db.RequestExecution.Query().Where(requestexecution.IDEQ(exec.ID)).Select(requestexecution.FieldRequestBody).Only(ctx)
+		if err != nil || dbExec.RequestBody == nil {
+			return xjson.EmptyJSONRawMessage, nil
+		}
+		return dbExec.RequestBody, nil
 	}
 
 	key := GenerateExecutionRequestBodyKey(exec.ProjectID, exec.RequestID, exec.ID)
@@ -1148,11 +1172,15 @@ func (s *RequestService) LoadRequestExecutionResponseBody(ctx context.Context, e
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
-		if exec.ResponseBody == nil {
-			return xjson.EmptyJSONRawMessage, nil
+		if exec.ResponseBody != nil {
+			return exec.ResponseBody, nil
 		}
 
-		return exec.ResponseBody, nil
+		dbExec, err := s.db.RequestExecution.Query().Where(requestexecution.IDEQ(exec.ID)).Select(requestexecution.FieldResponseBody).Only(ctx)
+		if err != nil || dbExec.ResponseBody == nil {
+			return xjson.EmptyJSONRawMessage, nil
+		}
+		return dbExec.ResponseBody, nil
 	}
 
 	key := GenerateExecutionResponseBodyKey(exec.ProjectID, exec.RequestID, exec.ID)
@@ -1192,7 +1220,15 @@ func (s *RequestService) LoadRequestExecutionResponseChunks(ctx context.Context,
 	}
 
 	if !s.shouldUseExternalStorage(ctx, dataStorage) {
-		return exec.ResponseChunks, nil
+		if exec.ResponseChunks != nil {
+			return exec.ResponseChunks, nil
+		}
+
+		dbExec, err := s.db.RequestExecution.Query().Where(requestexecution.IDEQ(exec.ID)).Select(requestexecution.FieldResponseChunks).Only(ctx)
+		if err != nil || dbExec.ResponseChunks == nil {
+			return []objects.JSONRawMessage{}, nil
+		}
+		return dbExec.ResponseChunks, nil
 	}
 
 	key := GenerateExecutionResponseChunksKey(exec.ProjectID, exec.RequestID, exec.ID)
