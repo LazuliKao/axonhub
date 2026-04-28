@@ -70,6 +70,7 @@ type OIDCProvider struct {
 	TokenURL    string `conf:"token_url" yaml:"token_url" json:"token_url"`
 	UserInfoURL string `conf:"user_info_url" yaml:"user_info_url" json:"user_info_url"`
 	JWKSURL     string `conf:"jwks_url" yaml:"jwks_url" json:"jwks_url"`
+	RedirectURL string `conf:"redirect_url" yaml:"redirect_url" json:"redirect_url"`
 	// Behavior
 	OIDCLoginOnly      bool              `conf:"oidc_login_only" yaml:"oidc_login_only" json:"oidc_login_only"`
 	GroupClaims        []string          `conf:"group_claims" yaml:"group_claims" json:"group_claims"`
@@ -157,10 +158,11 @@ type OIDCConfig struct {
 }
 
 type OIDCService struct {
+	*AbstractService
+
 	cfg OIDCConfig
 
 	cache     xcache.Cache[[]byte]
-	db        *ent.Client
 	mu        sync.Mutex
 	providers map[string]*oidcProvider
 	lastCheck map[string]int64
@@ -185,12 +187,12 @@ type OIDCServiceParams struct {
 func NewOIDCService(params OIDCServiceParams) (*OIDCService, error) {
 	ctx := context.Background()
 	svc := &OIDCService{
-		cfg:       params.Config,
-		cache:     xcache.NewFromConfig[[]byte](params.CacheConfig),
-		db:        params.DB,
-		mu:        sync.Mutex{},
-		providers: make(map[string]*oidcProvider),
-		lastCheck: make(map[string]int64),
+		AbstractService: &AbstractService{db: params.DB},
+		cfg:             params.Config,
+		cache:           xcache.NewFromConfig[[]byte](params.CacheConfig),
+		mu:              sync.Mutex{},
+		providers:       make(map[string]*oidcProvider),
+		lastCheck:       make(map[string]int64),
 	}
 
 	numProviders := len(params.Config.Providers)
@@ -263,9 +265,12 @@ func NewOIDCService(params OIDCServiceParams) (*OIDCService, error) {
 		// This redirect URI is for IdP -> backend callback handling.
 		// The backend will then issue a short-lived exchange code and redirect to
 		// the frontend callback route: /oauth/oidc/idp-callback?code=...
-		redirectURL := "/oauth/oidc/callback"
-		if numProviders > 1 {
-			redirectURL = fmt.Sprintf("/oauth/oidc/callback/%s", providerID)
+		redirectURL := p.RedirectURL
+		if redirectURL == "" {
+			redirectURL = "/oauth/oidc/callback"
+			if numProviders > 1 {
+				redirectURL = fmt.Sprintf("/oauth/oidc/callback/%s", providerID)
+			}
 		}
 
 		scopes := p.ExtraScopes
@@ -389,7 +394,7 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 	// Get linked issuers for the current user
 	linkedIdentities := make(map[string]*ent.OIDCIdentity)
 	if u, ok := contexts.GetUser(ctx); ok {
-		identities, err := s.db.OIDCIdentity.Query().
+		identities, err := s.entFromContext(ctx).OIDCIdentity.Query().
 			Where(oidcidentity.UserID(u.ID)).
 			All(ctx)
 		if err == nil {
@@ -420,7 +425,7 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 		} else {
 			info.LastCheck = lastCheck
 		}
-		if id, ok := linkedIdentities[p.IssuerURL]; ok {
+		if id, ok := linkedIdentities[p.issuer()]; ok {
 			info.IsLinked = true
 			info.LinkedIdentityID = fmt.Sprintf("gid://axonhub/OIDCIdentity/%d", id.ID)
 			info.LinkedEmail = id.Email
@@ -469,9 +474,10 @@ func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerIdentifier st
 		}
 
 		reinitializedProvider := &oidcProvider{
-			config: *cfgProvider,
-			oauth2: oauth2Config,
-			oidc:   provider,
+			config:   *cfgProvider,
+			oauth2:   oauth2Config,
+			oidc:     provider,
+			verifier: provider.Verifier(&oidc.Config{ClientID: cfgProvider.ClientID}),
 		}
 
 		s.setProvider(providerID, reinitializedProvider)
@@ -480,13 +486,19 @@ func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerIdentifier st
 
 	// Make redirect URL absolute
 	oauth2Config := p.oauth2
-	if baseURL != "" {
+	if baseURL != "" && !strings.HasPrefix(p.oauth2.RedirectURL, "http") {
 		oauth2Config.RedirectURL = baseURL + p.oauth2.RedirectURL
 	}
 
 	stateBytes := make([]byte, 32)
 	_, _ = rand.Read(stateBytes)
-	state := base64.URLEncoding.EncodeToString(stateBytes)
+	state := base64.RawURLEncoding.EncodeToString(stateBytes)
+
+	// Store state in cache to prevent CSRF (valid for 10 minutes)
+	err := s.cache.Set(ctx, "oidc_state:"+state, []byte("1"), store.WithExpiration(10*time.Minute))
+	if err != nil {
+		return "", "", fmt.Errorf("failed to cache state: %w", err)
+	}
 
 	var opts []oauth2.AuthCodeOption
 	var pkceVerifier string
@@ -494,7 +506,7 @@ func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerIdentifier st
 	if p.config.EnablePKCE {
 		pkceVerifierBytes := make([]byte, 32)
 		_, _ = rand.Read(pkceVerifierBytes)
-		pkceVerifier = base64.URLEncoding.EncodeToString(pkceVerifierBytes)
+		pkceVerifier = base64.RawURLEncoding.EncodeToString(pkceVerifierBytes)
 
 		// Store PKCE verifier in cache mapped to state (valid for 10 minutes)
 		err := s.cache.Set(ctx, "oidc_pkce:"+state, []byte(pkceVerifier), store.WithExpiration(10*time.Minute))
@@ -525,7 +537,7 @@ func (s *OIDCService) GetLinkAuthorizeURL(ctx context.Context, providerIdentifie
 	return authURL, state, nil
 }
 
-func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, state string) (string, string, error) {
+func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, state, baseURL string) (string, string, error) {
 	// Elevate privileges for database operations as this is an unauthenticated flow
 	ctx = contexts.WithUser(ctx, &ent.User{IsOwner: true})
 
@@ -534,17 +546,29 @@ func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, st
 		return "", "", fmt.Errorf("OIDC provider not found: %s", providerIdentifier)
 	}
 
+	// 1. Validate state parameter (CSRF protection)
+	stateExists, err := s.cache.Get(ctx, "oidc_state:"+state)
+	if err != nil || len(stateExists) == 0 {
+		return "", "", fmt.Errorf("invalid or expired state parameter")
+	}
+	_ = s.cache.Delete(ctx, "oidc_state:"+state) // Consume state
+
 	var opts []oauth2.AuthCodeOption
 	if p.config.EnablePKCE {
 		verifierBytes, err := s.cache.Get(ctx, "oidc_pkce:"+state)
 		if err != nil || len(verifierBytes) == 0 {
-			return "", "", fmt.Errorf("invalid state parameter: invalid state or PKCE verifier expired")
+			return "", "", fmt.Errorf("invalid PKCE verifier or verifier expired")
 		}
 		opts = append(opts, oauth2.SetAuthURLParam("code_verifier", string(verifierBytes)))
 		_ = s.cache.Delete(ctx, "oidc_pkce:"+state) // Consume once
 	}
 
-	oauth2Token, err := p.oauth2.Exchange(ctx, code, opts...)
+	oauth2Config := p.oauth2
+	if baseURL != "" && !strings.HasPrefix(p.oauth2.RedirectURL, "http") {
+		oauth2Config.RedirectURL = baseURL + p.oauth2.RedirectURL
+	}
+
+	oauth2Token, err := oauth2Config.Exchange(ctx, code, opts...)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to exchange authorization code: %w", err)
 	}
@@ -625,14 +649,15 @@ func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, st
 		// Consume link state
 		_ = s.cache.Delete(ctx, "oidc_link_state:"+state)
 		userID, err := strconv.Atoi(string(linkUserIDBytes))
-		if err == nil {
-			err = s.createIdentity(ctx, userID, p.config.issuer(), subject, claims.Email, p.config.providerDisplayName())
-			if err != nil {
-				return "", "", fmt.Errorf("failed to link identity: %w", err)
-			}
-			// Let the API caller know this was a link operation
-			return "", "link", nil
+		if err != nil {
+			return "", "", fmt.Errorf("invalid cached link user ID: %w", err)
 		}
+		err = s.createIdentity(ctx, userID, p.config.issuer(), subject, claims.Email, p.config.providerDisplayName())
+		if err != nil {
+			return "", "", fmt.Errorf("failed to link identity: %w", err)
+		}
+		// Let the API caller know this was a link operation
+		return "", "link", nil
 	}
 
 	userEntity, err := s.resolveUser(ctx, p, subject, claims.Email, claims.EmailVerified, claims.Name, claims.GivenName, claims.FamilyName, claims.Picture, claims.Groups)
@@ -690,14 +715,21 @@ func (s *OIDCService) fetchUserInfo(ctx context.Context, p *oidcProvider, token 
 		return &claims, nil
 	}
 
-	// Manual fetch via UserInfoURL
+	// Manual fetch via UserInfoURL with a timeout
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	req, err := http.NewRequestWithContext(ctx, "GET", p.config.UserInfoURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	token.SetAuthHeader(req)
 
-	resp, err := http.DefaultClient.Do(req)
+	// Use a client with a default timeout as well for safety
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -795,7 +827,7 @@ func parseGroups(v any) []string {
 
 func (s *OIDCService) resolveUser(ctx context.Context, p *oidcProvider, subject, email string, emailVerified bool, name, givenName, familyName, picture string, groups []string) (*ent.User, error) {
 	// 1. Try to find existing OIDC identity by issuer and subject
-	identity, err := s.db.OIDCIdentity.Query().
+	identity, err := s.entFromContext(ctx).OIDCIdentity.Query().
 		Where(
 			oidcidentity.Issuer(p.config.issuer()),
 			oidcidentity.Subject(subject),
@@ -828,8 +860,8 @@ func (s *OIDCService) resolveUser(ctx context.Context, p *oidcProvider, subject,
 
 	// 2. Identity not found. Check if an account with this email already exists (and is verified if required).
 	// This follows the "Account First" logic: if a user exists, we link to them.
-	if email != "" && emailVerified {
-		existingUser, err := s.db.User.Query().Where(user.Email(email)).Only(ctx)
+	if p.config.AutoLinkByEmail && email != "" && emailVerified {
+		existingUser, err := s.entFromContext(ctx).User.Query().Where(user.Email(email)).Only(ctx)
 		if err == nil {
 			// Found user by email, link this OIDC identity to them.
 			err = s.createIdentity(ctx, existingUser.ID, p.config.issuer(), subject, email, p.config.Name)
@@ -873,47 +905,69 @@ func (s *OIDCService) resolveUser(ctx context.Context, p *oidcProvider, subject,
 
 	firstName := givenName
 	lastName := familyName
-	if firstName == "" && lastName == "" {
-		firstName = name
+	if firstName == "" && lastName == "" && name != "" {
+		parts := strings.SplitN(name, " ", 2)
+		firstName = parts[0]
+		if len(parts) > 1 {
+			lastName = parts[1]
+		}
 	}
 
-	// Create the User record FIRST
-	userCreate := s.db.User.Create().
-		SetEmail(email).
-		SetFirstName(firstName).
-		SetLastName(lastName).
-		SetPassword(password)
+	// Create the User and Identity record within a transaction to avoid orphaned users
+	var createdUser *ent.User
+	err = s.RunInTransaction(ctx, func(ctx context.Context) error {
+		client := s.entFromContext(ctx)
+		userCreate := client.User.Create().
+			SetEmail(email).
+			SetFirstName(firstName).
+			SetLastName(lastName).
+			SetPassword(password)
 
-	if picture != "" {
-		userCreate.SetAvatar(picture)
-	}
+		if picture != "" {
+			userCreate.SetAvatar(picture)
+		}
 
-	// Apply role mappings to new user
-	if err := s.applyRoleMappings(ctx, userCreate.Mutation(), groups, p.config, true); err != nil {
-		return nil, fmt.Errorf("failed to apply role mappings: %w", err)
-	}
+		// Apply role mappings to new user
+		if err := s.applyRoleMappings(ctx, userCreate.Mutation(), groups, p.config, true); err != nil {
+			return fmt.Errorf("failed to apply role mappings: %w", err)
+		}
 
-	newUser, err := userCreate.Save(ctx)
+		createdUser, err = userCreate.Save(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+
+		// Create the Identity record
+		_, err = client.OIDCIdentity.Create().
+			SetUserID(createdUser.ID).
+			SetIssuer(p.config.issuer()).
+			SetSubject(subject).
+			SetEmail(email).
+			SetIdpName(p.config.providerDisplayName()).
+			SetLastLoginAt(time.Now()).
+			Save(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create identity for new user: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		return nil, err
 	}
 
-	// Create the Identity record SECOND
-	err = s.createIdentity(ctx, newUser.ID, p.config.issuer(), subject, email, p.config.providerDisplayName())
-	if err != nil {
-		// Note: Since this is a newly created user, failing here leaves an orphaned user.
-		// However, with SoftDelete and unique email, re-trying will either hit step 2 or fail.
-		return nil, fmt.Errorf("failed to create identity for new user: %w", err)
-	}
-
-	return newUser, nil
+	return createdUser, nil
 }
 
 func (s *OIDCService) syncUserInfo(ctx context.Context, u *ent.User, name, givenName, familyName, picture string, groups []string, cfg OIDCProvider) (*ent.User, error) {
 	firstName := givenName
 	lastName := familyName
-	if firstName == "" && lastName == "" {
-		firstName = name
+	if firstName == "" && lastName == "" && name != "" {
+		parts := strings.SplitN(name, " ", 2)
+		firstName = parts[0]
+		if len(parts) > 1 {
+			lastName = parts[1]
+		}
 	}
 
 	update := u.Update()
@@ -924,8 +978,8 @@ func (s *OIDCService) syncUserInfo(ctx context.Context, u *ent.User, name, given
 		update.SetAvatar(picture)
 	}
 
-	// Enforce OIDC Only if configured
-	if cfg.OIDCLoginOnly {
+	// Enforce OIDC Only if configured, but ONLY if the user doesn't already have a local password set
+	if cfg.OIDCLoginOnly && (u.Password == "" || u.Password == OIDC_ONLY_PLACEHOLDER) {
 		update.SetPassword(OIDC_ONLY_PLACEHOLDER)
 	}
 
@@ -1005,19 +1059,22 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 
 	if isOwner {
 		um.SetIsOwner(true)
-	} else {
-        um.SetIsOwner(false)
-    }
+	} else if len(cfg.RoleMappingRules) > 0 || len(cfg.DefaultRoles) > 0 {
+		// Only clear owner flag if role mappings are explicitly configured
+		um.SetIsOwner(false)
+	}
 
 	if len(scopes) > 0 {
 		um.SetScopes(scopes)
-	} else {
-        um.ClearScopes()
-    }
+	} else if len(cfg.RoleMappingRules) > 0 || len(cfg.DefaultScopes) > 0 {
+		// Only clear scopes if role mappings or default scopes are explicitly configured
+		um.ClearScopes()
+	}
 
 	// Roles logic depending on strategy
 	if len(dbRolesToCompile) > 0 {
-		roleEntities, err := s.db.Role.Query().Where(role.LevelEQ(role.LevelSystem), role.NameIn(dbRolesToCompile...)).All(ctx)
+		client := s.entFromContext(ctx)
+		roleEntities, err := client.Role.Query().Where(role.NameIn(dbRolesToCompile...)).All(ctx)
 		if err == nil && len(roleEntities) > 0 {
 			var roleIDs []int
 			for _, r := range roleEntities {
@@ -1044,7 +1101,7 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 					// Since we can't easily differentiate manual vs provider here without complex schema, we will treat it as a skip if they have any roles.
 					userID, exists := um.ID()
                     if exists {
-                        existingRolesCount, _ := s.db.Role.Query().Where(role.HasUsersWith(user.IDEQ(userID))).Count(ctx)
+                        existingRolesCount, _ := client.Role.Query().Where(role.HasUsersWith(user.IDEQ(userID))).Count(ctx)
                         if existingRolesCount == 0 {
                             um.AddRoleIDs(roleIDs...)
                         }
@@ -1063,7 +1120,7 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 }
 
 func (s *OIDCService) createIdentity(ctx context.Context, userID int, issuer, subject, email, idpName string) error {
-	_, err := s.db.OIDCIdentity.Create().
+	_, err := s.entFromContext(ctx).OIDCIdentity.Create().
 		SetUserID(userID).
 		SetIssuer(issuer).
 		SetSubject(subject).
@@ -1093,7 +1150,7 @@ func (s *OIDCService) ExchangeCode(ctx context.Context, code string) (*ent.User,
 	// Delete the code so it can only be used once
 	_ = s.cache.Delete(ctx, cacheKey)
 
-	user, err := s.db.User.Get(ctx, userID)
+	user, err := s.entFromContext(ctx).User.Get(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found: %w", err)
 	}
