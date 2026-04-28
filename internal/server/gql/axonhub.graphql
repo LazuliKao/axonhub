@@ -818,18 +818,6 @@ input CountChannelsByTypeInput {
   statusIn: [ChannelStatus!]
 }
 
-extend type Request {
-  requestBody: JSONRawMessage! @goField(forceResolver: true)
-  responseBody: JSONRawMessage @goField(forceResolver: true)
-  responseChunks: [JSONRawMessage!] @goField(forceResolver: true)
-}
-
-extend type RequestExecution {
-  requestBody: JSONRawMessage! @goField(forceResolver: true)
-  responseBody: JSONRawMessage @goField(forceResolver: true)
-  responseChunks: [JSONRawMessage!] @goField(forceResolver: true)
-}
-
 extend type Query {
   allChannelSummarys(includeArchived: Boolean): [Channel!]!
   allChannelTags: [String!]!

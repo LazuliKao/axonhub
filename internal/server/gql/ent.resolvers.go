@@ -11,6 +11,7 @@ import (
 
 	"entgo.io/contrib/entgql"
 	"github.com/looplj/axonhub/internal/ent"
+	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/samber/lo"
 )
@@ -545,6 +546,45 @@ func (r *requestResolver) DataStorageID(ctx context.Context, obj *ent.Request) (
 	}, nil
 }
 
+// RequestBody is the resolver for the requestBody field.
+func (r *requestResolver) RequestBody(ctx context.Context, obj *ent.Request) (objects.JSONRawMessage, error) {
+	value, err := r.requestService.LoadRequestBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load request body", log.Cause(err), log.Int("request_id", obj.ID))
+		return nil, fmt.Errorf("failed to load request body: %w", err)
+	}
+
+	return value, nil
+}
+
+// ResponseBody is the resolver for the responseBody field.
+func (r *requestResolver) ResponseBody(ctx context.Context, obj *ent.Request) (objects.JSONRawMessage, error) {
+	value, err := r.requestService.LoadResponseBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load request response body", log.Cause(err), log.Int("request_id", obj.ID))
+		return nil, fmt.Errorf("failed to load response body: %w", err)
+	}
+
+	return value, nil
+}
+
+// ResponseChunks is the resolver for the responseChunks field.
+func (r *requestResolver) ResponseChunks(ctx context.Context, obj *ent.Request) ([]objects.JSONRawMessage, error) {
+	value, err := r.requestService.LoadResponseChunks(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load request response chunks", log.Cause(err), log.Int("request_id", obj.ID))
+
+		// GraphQL requires slices to be non-nil; return empty slice with error
+		return []objects.JSONRawMessage{}, fmt.Errorf("failed to load response chunks: %w", err)
+	}
+
+	if value == nil {
+		return []objects.JSONRawMessage{}, nil
+	}
+
+	return value, nil
+}
+
 // ChannelID is the resolver for the channelID field.
 func (r *requestResolver) ChannelID(ctx context.Context, obj *ent.Request) (*objects.GUID, error) {
 	if obj.ChannelID == 0 {
@@ -598,6 +638,43 @@ func (r *requestExecutionResolver) DataStorageID(ctx context.Context, obj *ent.R
 		Type: ent.TypeDataStorage,
 		ID:   obj.DataStorageID,
 	}, nil
+}
+
+// RequestBody is the resolver for the requestBody field.
+func (r *requestExecutionResolver) RequestBody(ctx context.Context, obj *ent.RequestExecution) (objects.JSONRawMessage, error) {
+	value, err := r.requestService.LoadRequestExecutionRequestBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load execution request body", log.Cause(err), log.Int("request_execution_id", obj.ID))
+		return nil, fmt.Errorf("failed to load request body: %w", err)
+	}
+
+	return value, nil
+}
+
+// ResponseBody is the resolver for the responseBody field.
+func (r *requestExecutionResolver) ResponseBody(ctx context.Context, obj *ent.RequestExecution) (objects.JSONRawMessage, error) {
+	value, err := r.requestService.LoadRequestExecutionResponseBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load execution response body", log.Cause(err), log.Int("request_execution_id", obj.ID))
+		return nil, fmt.Errorf("failed to load response body: %w", err)
+	}
+
+	return value, nil
+}
+
+// ResponseChunks is the resolver for the responseChunks field.
+func (r *requestExecutionResolver) ResponseChunks(ctx context.Context, obj *ent.RequestExecution) ([]objects.JSONRawMessage, error) {
+	value, err := r.requestService.LoadRequestExecutionResponseChunks(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load execution response chunks", log.Cause(err), log.Int("request_execution_id", obj.ID))
+		return []objects.JSONRawMessage{}, fmt.Errorf("failed to load response chunks: %w", err)
+	}
+
+	if value == nil {
+		return []objects.JSONRawMessage{}, nil
+	}
+
+	return value, nil
 }
 
 // Channel is the resolver for the channel field.
