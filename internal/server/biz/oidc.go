@@ -11,27 +11,27 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"regexp"
-	"sort"
-	"github.com/looplj/axonhub/internal/ent/role"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/eko/gocache/lib/v4/store"
 	"github.com/go-viper/mapstructure/v2"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 
 	"github.com/looplj/axonhub/internal/contexts"
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/oidcidentity"
+	"github.com/looplj/axonhub/internal/ent/role"
 	"github.com/looplj/axonhub/internal/ent/user"
 	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/pkg/xcache"
-	"go.uber.org/zap"
 )
 
 type ProviderInfo struct {
@@ -49,17 +49,17 @@ type ProviderInfo struct {
 }
 
 type OIDCProvider struct {
-	ID                    string            `conf:"id" yaml:"id" json:"id"`
-	Name                  string            `conf:"name" yaml:"name" json:"name"`
-	DisplayName           string            `conf:"display_name" yaml:"display_name" json:"display_name"`
-	IssuerURL             string            `conf:"issuer_url" yaml:"issuer_url" json:"issuer_url"`
-	ClientID              string            `conf:"client_id" yaml:"client_id" json:"client_id"`
-	ClientSecret          string            `conf:"client_secret" yaml:"client_secret" json:"client_secret"`
-	ExtraScopes           []string          `conf:"extra_scopes" yaml:"extra_scopes" json:"extra_scopes"`
-	JITEnabled            bool              `conf:"jit_enabled" yaml:"jit_enabled" json:"jit_enabled"`
-	AutoLinkByEmail       bool              `conf:"auto_link_by_email" yaml:"auto_link_by_email" json:"auto_link_by_email"`
-	RequireEmailVerified  bool              `conf:"require_email_verified" yaml:"require_email_verified" json:"require_email_verified"`
-	EnablePKCE            bool              `conf:"enable_pkce" yaml:"enable_pkce" json:"enable_pkce"`
+	ID                   string   `conf:"id" yaml:"id" json:"id"`
+	Name                 string   `conf:"name" yaml:"name" json:"name"`
+	DisplayName          string   `conf:"display_name" yaml:"display_name" json:"display_name"`
+	IssuerURL            string   `conf:"issuer_url" yaml:"issuer_url" json:"issuer_url"`
+	ClientID             string   `conf:"client_id" yaml:"client_id" json:"client_id"`
+	ClientSecret         string   `conf:"client_secret" yaml:"client_secret" json:"client_secret"`
+	ExtraScopes          []string `conf:"extra_scopes" yaml:"extra_scopes" json:"extra_scopes"`
+	JITEnabled           bool     `conf:"jit_enabled" yaml:"jit_enabled" json:"jit_enabled"`
+	AutoLinkByEmail      bool     `conf:"auto_link_by_email" yaml:"auto_link_by_email" json:"auto_link_by_email"`
+	RequireEmailVerified bool     `conf:"require_email_verified" yaml:"require_email_verified" json:"require_email_verified"`
+	EnablePKCE           bool     `conf:"enable_pkce" yaml:"enable_pkce" json:"enable_pkce"`
 	// UI customization
 	IconURL      string `conf:"icon_url" yaml:"icon_url" json:"icon_url"`
 	ButtonColor  string `conf:"button_color" yaml:"button_color" json:"button_color"`
@@ -78,7 +78,7 @@ type OIDCProvider struct {
 	RoleMappingRules   []RoleMappingRule `conf:"role_mappings" yaml:"role_mappings" json:"role_mappings"`
 	DefaultRoles       []string          `conf:"default_roles" yaml:"default_roles" json:"default_roles"`
 	DefaultScopes      []string          `conf:"default_scopes" yaml:"default_scopes" json:"default_scopes"`
-	SyncRoleStrategy   string            `conf:"sync_role_strategy" yaml:"sync_role_strategy" json:"sync_role_strategy"` // "always", "create_only", "merge", "manual_first"
+	SyncRoleStrategy   string            `conf:"sync_role_strategy" yaml:"sync_role_strategy" json:"sync_role_strategy"`       // "always", "create_only", "merge", "manual_first"
 	RolePrecedenceMode string            `conf:"role_precedence_mode" yaml:"role_precedence_mode" json:"role_precedence_mode"` // "merge", "highest"
 }
 
@@ -112,6 +112,7 @@ func (p OIDCProvider) normalize() OIDCProvider {
 	if normalized.Name == "" {
 		normalized.Name = normalized.ID
 	}
+
 	if normalized.DisplayName == "" {
 		normalized.DisplayName = normalized.Name
 	}
@@ -131,6 +132,7 @@ func (p OIDCProvider) issuer() string {
 	if p.Issuer != "" {
 		return p.Issuer
 	}
+
 	return p.IssuerURL
 }
 
@@ -197,8 +199,10 @@ func NewOIDCService(params OIDCServiceParams) (*OIDCService, error) {
 
 	numProviders := len(params.Config.Providers)
 	seenProviderIDs := make(map[string]string, numProviders)
+
 	for i, p := range params.Config.Providers {
 		p = p.normalize()
+
 		providerID := p.providerID()
 		if providerID == "" {
 			return nil, fmt.Errorf("OIDC provider at index %d requires id or name", i)
@@ -208,6 +212,7 @@ func NewOIDCService(params OIDCServiceParams) (*OIDCService, error) {
 		if previousProviderID, ok := seenProviderIDs[normalizedProviderID]; ok {
 			return nil, fmt.Errorf("duplicate OIDC provider id %q conflicts with %q", providerID, previousProviderID)
 		}
+
 		seenProviderIDs[normalizedProviderID] = providerID
 
 		svc.cfg.Providers[i] = p
@@ -244,6 +249,7 @@ func NewOIDCService(params OIDCServiceParams) (*OIDCService, error) {
 			if issuer == "" {
 				issuer = p.IssuerURL
 			}
+
 			keySet := oidc.NewRemoteKeySet(ctx, p.JWKSURL)
 			verifier = oidc.NewVerifier(issuer, keySet, &oidc.Config{ClientID: p.ClientID})
 		}
@@ -303,6 +309,7 @@ func resolveIconURL(raw string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
+
 	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "data:") {
 		return raw, nil
 	}
@@ -311,13 +318,17 @@ func resolveIconURL(raw string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("reading icon file %q: %w", raw, err)
 	}
+
 	ext := strings.ToLower(filepath.Ext(raw))
+
 	mimeType := mime.TypeByExtension(ext)
 	if mimeType == "" {
 		// Fall back to sniffing the first 512 bytes.
 		mimeType = http.DetectContentType(data)
 	}
+
 	dataURL := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data)
+
 	return dataURL, nil
 }
 
@@ -377,7 +388,9 @@ func (s *OIDCService) markProviderCheck(providerID string, now int64) int64 {
 	if now-lastCheck < 60 {
 		return lastCheck
 	}
+
 	s.lastCheck[providerID] = now
+
 	return lastCheck
 }
 
@@ -393,6 +406,7 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 
 	// Get linked issuers for the current user
 	linkedIdentities := make(map[string]*ent.OIDCIdentity)
+
 	if u, ok := contexts.GetUser(ctx); ok {
 		identities, err := s.entFromContext(ctx).OIDCIdentity.Query().
 			Where(oidcidentity.UserID(u.ID)).
@@ -407,10 +421,12 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 	for _, rawProvider := range s.cfg.Providers {
 		p := rawProvider.normalize()
 		providerID := p.providerID()
+
 		displayName := p.providerDisplayName()
 		if displayName == "" {
 			displayName = p.Name
 		}
+
 		info := ProviderInfo{
 			ID:          providerID,
 			Name:        p.Name,
@@ -419,19 +435,23 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 			IconURL:     p.IconURL,
 			ButtonColor: p.ButtonColor,
 		}
+
 		ok, lastCheck := s.getProviderInfo(providerID)
 		if ok {
 			info.Active = true
 		} else {
 			info.LastCheck = lastCheck
 		}
+
 		if id, ok := linkedIdentities[p.issuer()]; ok {
 			info.IsLinked = true
 			info.LinkedIdentityID = fmt.Sprintf("gid://axonhub/OIDCIdentity/%d", id.ID)
 			info.LinkedEmail = id.Email
 		}
+
 		providers = append(providers, info)
 	}
+
 	return providers
 }
 
@@ -439,17 +459,21 @@ func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerIdentifier st
 	p, _, ok := s.getProviderByIdentifier(providerIdentifier)
 	if !ok {
 		log.Error(ctx, "OIDC provider not found in map", log.String("provider", providerIdentifier))
+
 		cfgProvider, providerID, found := findOIDCProviderConfig(s.cfg.Providers, providerIdentifier)
 		if !found {
 			return "", "", fmt.Errorf("Provider not found")
 		}
 
 		now := time.Now().Unix()
+
 		lastCheck := s.markProviderCheck(providerID, now)
 		if remaining := 60 - (now - lastCheck); remaining > 0 {
 			return "", "", fmt.Errorf("Please wait %d seconds before retrying this provider", remaining)
 		}
+
 		numProviders := len(s.cfg.Providers)
+
 		redirectURL := "/oauth/oidc/callback"
 		if numProviders > 1 {
 			redirectURL = fmt.Sprintf("/oauth/oidc/callback/%s", providerID)
@@ -501,6 +525,7 @@ func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerIdentifier st
 	}
 
 	var opts []oauth2.AuthCodeOption
+
 	var pkceVerifier string
 
 	if p.config.EnablePKCE {
@@ -519,6 +544,7 @@ func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerIdentifier st
 	}
 
 	authURL := oauth2Config.AuthCodeURL(state, opts...)
+
 	return authURL, state, nil
 }
 
@@ -551,14 +577,17 @@ func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, st
 	if err != nil || len(stateExists) == 0 {
 		return "", "", fmt.Errorf("invalid or expired state parameter")
 	}
+
 	_ = s.cache.Delete(ctx, "oidc_state:"+state) // Consume state
 
 	var opts []oauth2.AuthCodeOption
+
 	if p.config.EnablePKCE {
 		verifierBytes, err := s.cache.Get(ctx, "oidc_pkce:"+state)
 		if err != nil || len(verifierBytes) == 0 {
 			return "", "", fmt.Errorf("invalid PKCE verifier or verifier expired")
 		}
+
 		opts = append(opts, oauth2.SetAuthURLParam("code_verifier", string(verifierBytes)))
 		_ = s.cache.Delete(ctx, "oidc_pkce:"+state) // Consume once
 	}
@@ -612,27 +641,38 @@ func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, st
 			if rawIDToken == "" {
 				return "", "", fmt.Errorf("failed to fetch user info for OAuth2-only provider: %w", err)
 			}
+
 			log.Warn(ctx, "Failed to fetch UserInfo", log.String("provider", providerIdentifier), zap.Error(err))
 		} else {
 			if subject == "" {
 				subject = userInfoClaims.Sub
 			}
+
 			// Merge claims (UserInfo usually has more up-to-date data)
 			if userInfoClaims.Email != "" {
 				claims.Email = userInfoClaims.Email
 			}
+
+			if userInfoClaims.EmailVerified {
+				claims.EmailVerified = userInfoClaims.EmailVerified
+			}
+
 			if userInfoClaims.Name != "" {
 				claims.Name = userInfoClaims.Name
 			}
-			if userInfoClaims.Picture != "" {
-				claims.Picture = userInfoClaims.Picture
-			}
+
 			if userInfoClaims.GivenName != "" {
 				claims.GivenName = userInfoClaims.GivenName
 			}
+
 			if userInfoClaims.FamilyName != "" {
 				claims.FamilyName = userInfoClaims.FamilyName
 			}
+
+			if userInfoClaims.Picture != "" {
+				claims.Picture = userInfoClaims.Picture
+			}
+
 			if len(userInfoClaims.Groups) > 0 {
 				claims.Groups = userInfoClaims.Groups
 			}
@@ -648,10 +688,12 @@ func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, st
 	if err == nil && len(linkUserIDBytes) > 0 {
 		// Consume link state
 		_ = s.cache.Delete(ctx, "oidc_link_state:"+state)
+
 		userID, err := strconv.Atoi(string(linkUserIDBytes))
 		if err != nil {
 			return "", "", fmt.Errorf("invalid cached link user ID: %w", err)
 		}
+
 		err = s.createIdentity(ctx, userID, p.config.issuer(), subject, claims.Email, p.config.providerDisplayName())
 		if err != nil {
 			return "", "", fmt.Errorf("failed to link identity: %w", err)
@@ -675,7 +717,7 @@ func (s *OIDCService) Callback(ctx context.Context, providerIdentifier, code, st
 	exchangeCode := hex.EncodeToString(exchangeCodeBytes)
 
 	// Cache user ID for exchange (valid for 5 mins)
-	err = s.cache.Set(ctx, "oidc_exchange:"+exchangeCode, []byte(fmt.Sprintf("%d", userEntity.ID)), store.WithExpiration(5*time.Minute))
+	err = s.cache.Set(ctx, "oidc_exchange:"+exchangeCode, fmt.Appendf(nil, "%d", userEntity.ID), store.WithExpiration(5*time.Minute))
 	if err != nil {
 		return "", "", fmt.Errorf("failed to cache exchange code: %w", err)
 	}
@@ -701,6 +743,7 @@ func (s *OIDCService) fetchUserInfo(ctx context.Context, p *oidcProvider, token 
 		if err != nil {
 			return nil, err
 		}
+
 		var claims oidcClaims
 		if err := userInfo.Claims(&claims); err != nil {
 			return nil, err
@@ -719,20 +762,23 @@ func (s *OIDCService) fetchUserInfo(ctx context.Context, p *oidcProvider, token 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", p.config.UserInfoURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.config.UserInfoURL, nil)
 	if err != nil {
 		return nil, err
 	}
+
 	token.SetAuthHeader(req)
 
 	// Use a client with a default timeout as well for safety
 	client := &http.Client{
 		Timeout: 15 * time.Second,
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
+
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -745,6 +791,7 @@ func (s *OIDCService) fetchUserInfo(ctx context.Context, p *oidcProvider, token 
 	}
 
 	var claims oidcClaims
+
 	_ = mapstructure.Decode(raw, &claims)
 	claims.Groups = s.extractGroups(raw, p)
 
@@ -760,7 +807,6 @@ func (s *OIDCService) fetchUserInfo(ctx context.Context, p *oidcProvider, token 
 	return &claims, nil
 }
 
-
 func (s *OIDCService) extractGroups(raw map[string]any, p *oidcProvider) []string {
 	var claims []string
 	if len(p.config.GroupClaims) > 0 {
@@ -770,6 +816,7 @@ func (s *OIDCService) extractGroups(raw map[string]any, p *oidcProvider) []strin
 	}
 
 	var allGroups []string
+
 	for _, c := range claims {
 		if grps := parseGroups(raw[c]); len(grps) > 0 {
 			allGroups = append(allGroups, grps...)
@@ -781,6 +828,7 @@ func (s *OIDCService) extractGroups(raw map[string]any, p *oidcProvider) []strin
 	}
 
 	var re *regexp.Regexp
+
 	if p.config.GroupParser.RegexReplacePattern != "" {
 		compiled, err := regexp.Compile(p.config.GroupParser.RegexReplacePattern)
 		if err == nil {
@@ -795,9 +843,11 @@ func (s *OIDCService) extractGroups(raw map[string]any, p *oidcProvider) []strin
 		if re != nil {
 			g = re.ReplaceAllString(g, p.config.GroupParser.RegexReplaceWith)
 		}
+
 		if !p.config.GroupParser.CaseSensitive {
 			g = strings.ToLower(g)
 		}
+
 		results = append(results, g)
 	}
 
@@ -808,6 +858,7 @@ func parseGroups(v any) []string {
 	if v == nil {
 		return nil
 	}
+
 	switch val := v.(type) {
 	case string:
 		return []string{val}
@@ -818,10 +869,12 @@ func parseGroups(v any) []string {
 				res = append(res, s)
 			}
 		}
+
 		return res
 	case []string:
 		return val
 	}
+
 	return nil
 }
 
@@ -834,7 +887,6 @@ func (s *OIDCService) resolveUser(ctx context.Context, p *oidcProvider, subject,
 		).
 		WithUser().
 		Only(ctx)
-
 	if err == nil {
 		// Update last login
 		_, _ = identity.Update().SetLastLoginAt(time.Now()).Save(ctx)
@@ -900,21 +952,24 @@ func (s *OIDCService) resolveUser(ctx context.Context, p *oidcProvider, subject,
 		email = fmt.Sprintf("%s@%s.oidc", subject, p.config.Name)
 	}
 
-	// Set a magic password indicating this user must login via OIDC only.
-	password := OIDC_ONLY_PLACEHOLDER
-
 	firstName := givenName
 	lastName := familyName
+
 	if firstName == "" && lastName == "" && name != "" {
 		parts := strings.SplitN(name, " ", 2)
 		firstName = parts[0]
+
 		if len(parts) > 1 {
 			lastName = parts[1]
 		}
 	}
 
+	// Set a magic password indicating this user must login via OIDC only.
+	password := OIDC_ONLY_PLACEHOLDER
+
 	// Create the User and Identity record within a transaction to avoid orphaned users
 	var createdUser *ent.User
+
 	err = s.RunInTransaction(ctx, func(ctx context.Context) error {
 		client := s.entFromContext(ctx)
 		userCreate := client.User.Create().
@@ -962,8 +1017,10 @@ func (s *OIDCService) resolveUser(ctx context.Context, p *oidcProvider, subject,
 func (s *OIDCService) syncUserInfo(ctx context.Context, u *ent.User, name, givenName, familyName, picture string, groups []string, cfg OIDCProvider) (*ent.User, error) {
 	firstName := givenName
 	lastName := familyName
+
 	if firstName == "" && lastName == "" && name != "" {
 		parts := strings.SplitN(name, " ", 2)
+
 		firstName = parts[0]
 		if len(parts) > 1 {
 			lastName = parts[1]
@@ -971,9 +1028,11 @@ func (s *OIDCService) syncUserInfo(ctx context.Context, u *ent.User, name, given
 	}
 
 	update := u.Update()
+
 	if firstName != "" || lastName != "" {
 		update.SetFirstName(firstName).SetLastName(lastName)
 	}
+
 	if picture != "" {
 		update.SetAvatar(picture)
 	}
@@ -1020,9 +1079,10 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 					matched = true
 				}
 			}
-			
+
 			if matched {
 				matchedAnyGroup = true
+
 				matchedRules = append(matchedRules, rule)
 			}
 		}
@@ -1033,8 +1093,8 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 		// Apply defaults
 		scopes = append(scopes, cfg.DefaultScopes...)
 		for _, dr := range cfg.DefaultRoles {
-            matchedRules = append(matchedRules, RoleMappingRule{DBRole: dr, Priority: 0})
-        }
+			matchedRules = append(matchedRules, RoleMappingRule{DBRole: dr, Priority: 0})
+		}
 	} else {
 		// Precedence logic on matched rules
 		if cfg.RolePrecedenceMode == "highest" && len(matchedRules) > 0 {
@@ -1046,12 +1106,13 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 	}
 
 	var dbRolesToCompile []string
+	// Calculate roles and scopes
 	for _, rule := range matchedRules {
 		db_role := strings.TrimSpace(rule.DBRole)
 		if db_role == "system:owner" {
 			isOwner = true
-		} else if strings.HasPrefix(db_role, "scope:") {
-			scopes = append(scopes, strings.TrimPrefix(db_role, "scope:"))
+		} else if db_role, ok := strings.CutPrefix(db_role, "scope:"); ok {
+			scopes = append(scopes, db_role)
 		} else {
 			dbRolesToCompile = append(dbRolesToCompile, db_role)
 		}
@@ -1074,6 +1135,7 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 	// Roles logic depending on strategy
 	if len(dbRolesToCompile) > 0 {
 		client := s.entFromContext(ctx)
+
 		roleEntities, err := client.Role.Query().Where(role.NameIn(dbRolesToCompile...)).All(ctx)
 		if err == nil && len(roleEntities) > 0 {
 			var roleIDs []int
@@ -1086,7 +1148,7 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 			if strategy == "" {
 				strategy = "always"
 			}
-			
+
 			if isCreate {
 				um.AddRoleIDs(roleIDs...)
 			} else {
@@ -1100,12 +1162,12 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 					// Manual first approach: we check if user has existing project-based roles or something, but realistically we would need to inspect existing manually set roles.
 					// Since we can't easily differentiate manual vs provider here without complex schema, we will treat it as a skip if they have any roles.
 					userID, exists := um.ID()
-                    if exists {
-                        existingRolesCount, _ := client.Role.Query().Where(role.HasUsersWith(user.IDEQ(userID))).Count(ctx)
-                        if existingRolesCount == 0 {
-                            um.AddRoleIDs(roleIDs...)
-                        }
-                    }
+					if exists {
+						existingRolesCount, _ := client.Role.Query().Where(role.HasUsersWith(user.IDEQ(userID))).Count(ctx)
+						if existingRolesCount == 0 {
+							um.AddRoleIDs(roleIDs...)
+						}
+					}
 				}
 			}
 		}
@@ -1128,6 +1190,7 @@ func (s *OIDCService) createIdentity(ctx context.Context, userID int, issuer, su
 		SetIdpName(idpName).
 		SetLastLoginAt(time.Now()).
 		Save(ctx)
+
 	return err
 }
 
@@ -1136,6 +1199,7 @@ func (s *OIDCService) ExchangeCode(ctx context.Context, code string) (*ent.User,
 	ctx = contexts.WithUser(ctx, &ent.User{IsOwner: true})
 
 	cacheKey := "oidc_exchange:" + code
+
 	userIDBytes, err := s.cache.
 		Get(ctx, cacheKey)
 	if err != nil {

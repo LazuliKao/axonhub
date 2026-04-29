@@ -227,6 +227,7 @@ func TestOutboundTransformer_TransformRequest(t *testing.T) {
 
 				// Validate body is valid JSON
 				var body map[string]any
+
 				err := json.Unmarshal(req.Body, &body)
 				assert.NoError(t, err)
 				assert.Equal(t, "gpt-4o", body["model"])
@@ -335,6 +336,7 @@ func TestOutboundTransformer_TransformRequest(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, httpReq)
+
 				if tt.validate != nil {
 					tt.validate(t, httpReq)
 				}
@@ -961,9 +963,11 @@ func TestOutboundTransformer_TransformResponse(t *testing.T) {
 				assert.Equal(t, "gpt-4o", resp.Model)
 				assert.Len(t, resp.Choices, 1)
 				assert.Equal(t, "assistant", resp.Choices[0].Message.Role)
+
 				if resp.Choices[0].Message.Content.Content != nil {
 					assert.Equal(t, "Hello! How can I help you today?", *resp.Choices[0].Message.Content.Content)
 				}
+
 				if resp.Choices[0].FinishReason != nil {
 					assert.Equal(t, "stop", *resp.Choices[0].FinishReason)
 				}
@@ -981,6 +985,7 @@ func TestOutboundTransformer_TransformResponse(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
+
 				if tt.validate != nil {
 					tt.validate(t, resp)
 				}

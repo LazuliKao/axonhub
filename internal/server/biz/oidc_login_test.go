@@ -12,8 +12,8 @@ import (
 	"github.com/looplj/axonhub/internal/ent/oidcidentity"
 	"github.com/looplj/axonhub/internal/ent/role"
 	"github.com/looplj/axonhub/internal/ent/schema/schematype"
-	"github.com/looplj/axonhub/internal/pkg/xcache"
 	_ "github.com/looplj/axonhub/internal/pkg/sqlite" // Register custom sqlite driver with FK support
+	"github.com/looplj/axonhub/internal/pkg/xcache"
 )
 
 func setupTestOIDCService(t *testing.T) (*OIDCService, *ent.Client) {
@@ -65,9 +65,10 @@ func TestResolveUser_AccountFirstAndMultipleOIDC(t *testing.T) {
 	// 2. Test Account First (Matching by Email): Existing user, new OIDC provider
 	p2 := &oidcProvider{
 		config: OIDCProvider{
-			ID:        "github",
-			Name:      "github",
-			IssuerURL: "https://github.com",
+			ID:              "github",
+			Name:            "github",
+			IssuerURL:       "https://github.com",
+			AutoLinkByEmail: true,
 		},
 	}
 	subject2 := "sub-github-1"
@@ -164,7 +165,9 @@ func TestOIDC_ExtractGroups(t *testing.T) {
 func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 	svc, client := setupTestOIDCService(t)
 	defer client.Close()
+
 	ctx := context.Background()
+
 	ctx = ent.NewContext(ctx, client)
 	ctx = authz.WithTestBypass(ctx)
 
@@ -194,6 +197,7 @@ func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 	u1 := u.Update()
 	err = svc.applyRoleMappings(ctx, u1.Mutation(), []string{"admin-ops-team"}, cfg, false)
 	require.NoError(t, err)
+
 	uUpdated1, _ := u1.Save(ctx)
 	roles1, _ := uUpdated1.QueryRoles().All(ctx)
 	require.Len(t, roles1, 1)
@@ -203,16 +207,20 @@ func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 	u2 := uUpdated1.Update()
 	err = svc.applyRoleMappings(ctx, u2.Mutation(), []string{"user"}, cfg, false)
 	require.NoError(t, err)
+
 	uUpdated2, _ := u2.Save(ctx)
 	roles2, _ := uUpdated2.QueryRoles().All(ctx)
 	require.Len(t, roles2, 2) // Should have both admin and user
+
 	var foundUser bool
+
 	for _, r := range roles2 {
 		if r.ID == rUser.ID {
 			foundUser = true
 			break
 		}
 	}
+
 	require.True(t, foundUser)
 
 	// 3. always (clear and replace)
@@ -220,6 +228,7 @@ func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 	u3 := uUpdated2.Update()
 	err = svc.applyRoleMappings(ctx, u3.Mutation(), []string{"ops"}, cfg, false)
 	require.NoError(t, err)
+
 	uUpdated3, _ := u3.Save(ctx)
 	roles3, _ := uUpdated3.QueryRoles().All(ctx)
 	require.Len(t, roles3, 1)
@@ -229,6 +238,7 @@ func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 	u4 := uUpdated3.Update()
 	err = svc.applyRoleMappings(ctx, u4.Mutation(), []string{"owner"}, cfg, false)
 	require.NoError(t, err)
+
 	uUpdated4, _ := u4.Save(ctx)
 	require.True(t, uUpdated4.IsOwner)
 
@@ -237,6 +247,7 @@ func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 	u5 := uUpdated4.Update()
 	err = svc.applyRoleMappings(ctx, u5.Mutation(), []string{"admin-ops", "user"}, cfg, false) // admin uses "admin-*"
 	require.NoError(t, err)
+
 	uUpdated5, _ := u5.Save(ctx)
 	roles5, _ := uUpdated5.QueryRoles().All(ctx)
 	require.Len(t, roles5, 1)
@@ -247,6 +258,7 @@ func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 	u6 := uUpdated5.Update()
 	err = svc.applyRoleMappings(ctx, u6.Mutation(), []string{"ops"}, cfg, false) // should skip since it's not creation
 	require.NoError(t, err)
+
 	uUpdated6, _ := u6.Save(ctx)
 	roles6, _ := uUpdated6.QueryRoles().All(ctx)
 	require.Len(t, roles6, 1)
@@ -257,6 +269,7 @@ func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 	u7 := uUpdated6.Update()
 	err = svc.applyRoleMappings(ctx, u7.Mutation(), []string{"user"}, cfg, false) // should skip since user already has roles
 	require.NoError(t, err)
+
 	uUpdated7, _ := u7.Save(ctx)
 	roles7, _ := uUpdated7.QueryRoles().All(ctx)
 	require.Len(t, roles7, 1)
@@ -266,7 +279,9 @@ func TestOIDC_ApplyRoleMappings_SyncStrategies(t *testing.T) {
 func TestOIDC_ApplyRoleMappings_DefaultsAndRegex(t *testing.T) {
 	svc, client := setupTestOIDCService(t)
 	defer client.Close()
+
 	ctx := context.Background()
+
 	ctx = ent.NewContext(ctx, client)
 	ctx = authz.WithTestBypass(ctx)
 
