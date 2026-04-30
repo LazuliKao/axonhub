@@ -9,7 +9,6 @@ import {
   Channel,
   ChannelConnection,
   ChannelSummaryConnection,
-  ChannelEndpoint,
   CreateChannelInput,
   UpdateChannelInput,
   channelConnectionSchema,
@@ -110,6 +109,10 @@ const CREATE_CHANNEL_MUTATION = `
         }
       orderingWeight
       remark
+      defaultEndpoints {
+        apiFormat
+        path
+      }
       endpoints {
         apiFormat
         path
@@ -165,6 +168,10 @@ const BULK_CREATE_CHANNELS_MUTATION = `
         }
       orderingWeight
       remark
+      defaultEndpoints {
+        apiFormat
+        path
+      }
       endpoints {
         apiFormat
         path
@@ -221,6 +228,10 @@ const UPDATE_CHANNEL_MUTATION = `
       orderingWeight
       errorMessage
       remark
+      defaultEndpoints {
+        apiFormat
+        path
+      }
       endpoints {
         apiFormat
         path
@@ -280,6 +291,10 @@ const SAVE_CHANNEL_ENDPOINTS_MUTATION = `
       id
       type
       name
+      defaultEndpoints {
+        apiFormat
+        path
+      }
       endpoints {
         apiFormat
         path
@@ -338,6 +353,10 @@ const BULK_IMPORT_CHANNELS_MUTATION = `
         manualModels
         tags
         defaultTestModel
+        defaultEndpoints {
+          apiFormat
+          path
+        }
         endpoints {
           apiFormat
           path
@@ -518,6 +537,10 @@ const BULK_UPDATE_CHANNEL_ORDERING_MUTATION = `
         manualModels
         defaultTestModel
         orderingWeight
+        defaultEndpoints {
+          apiFormat
+          path
+        }
         endpoints {
           apiFormat
           path
@@ -682,6 +705,10 @@ const QUERY_CHANNELS_QUERY = `
           orderingWeight
           errorMessage
           remark
+          defaultEndpoints {
+            apiFormat
+            path
+          }
           endpoints {
             apiFormat
             path
@@ -947,11 +974,8 @@ export function useSaveChannelEndpoints() {
 
   return useMutation({
     mutationFn: async (input: SaveChannelEndpointsInput) => {
-      const data = await graphqlRequest<{ saveChannelEndpoints: { id: string; endpoints: ChannelEndpoint[] } }>(
-        SAVE_CHANNEL_ENDPOINTS_MUTATION,
-        { input }
-      );
-      return data.saveChannelEndpoints;
+      const data = await graphqlRequest<{ saveChannelEndpoints: Channel }>(SAVE_CHANNEL_ENDPOINTS_MUTATION, { input });
+      return channelSchema.parse(data.saveChannelEndpoints);
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['channels'] });
@@ -1389,7 +1413,7 @@ export function useFetchModels() {
         throw error;
       }
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data) => {
       if (data.error) {
         toast.error(t('common.errors.internalServerError'));
       } else {
@@ -1634,10 +1658,10 @@ export function useEnableSelectedChannelAPIKeys() {
   return useMutation({
     mutationFn: async ({ channelID, keys }: { channelID: string; keys: string[] }) => {
       try {
-        const data = await graphqlRequest<{ enableSelectedChannelAPIKeys: boolean }>(
-          ENABLE_SELECTED_CHANNEL_API_KEYS_MUTATION,
-          { channelID, keys }
-        );
+        const data = await graphqlRequest<{ enableSelectedChannelAPIKeys: boolean }>(ENABLE_SELECTED_CHANNEL_API_KEYS_MUTATION, {
+          channelID,
+          keys,
+        });
         return data.enableSelectedChannelAPIKeys;
       } catch (error) {
         handleError(error, { context: 'Enable Selected API Keys' });
@@ -1673,7 +1697,7 @@ export function useDeleteDisabledChannelAPIKeys() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['channelDisabledAPIKeys', variables.channelID] });
       queryClient.invalidateQueries({ queryKey: ['channels'] });
-      
+
       // Show appropriate message based on the result
       if (data.message === 'ONE_KEY_PRESERVED') {
         toast.success(t('channels.messages.deleteDisabledAPIKeysPreserved'));

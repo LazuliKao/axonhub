@@ -31,20 +31,22 @@ const (
 	// DefaultCopilotBaseURL is the base URL for GitHub Copilot API.
 	DefaultCopilotBaseURL          = "https://api.githubcopilot.com"
 	CopilotChatCompletionsEndpoint = "/chat/completions"
-	EditorVersionHeader            = "editor-version"
-	EditorPluginVersionHeader      = "editor-plugin-version"
-	UserAgentHeader                = "user-agent"
-	OpenAIIntentHeader             = "openai-intent"
-	CopilotIntegrationIDHeader     = "copilot-integration-id"
-	GitHubAPIVersionHeader         = "x-github-api-version"
-	RequestIDHeader                = "x-request-id"
-	VSCodeUserAgentLibHeader       = "x-vscode-user-agent-library-version"
+	EditorVersionHeader            = "Editor-Version"
+	EditorPluginVersionHeader      = "Editor-Plugin-Version"
+	UserAgentHeader                = "User-Agent"
+	OpenAIIntentHeader             = "Openai-Intent"
+	CopilotIntegrationIDHeader     = "Copilot-Integration-Id"
+	GitHubAPIVersionHeader         = "X-Github-Api-Version"
+	RequestIDHeader                = "X-Request-Id"
+	VSCodeUserAgentLibHeader       = "X-Vscode-User-Agent-Library-Version"
 	CopilotVisionRequestHeader     = "Copilot-Vision-Request"
 	InitiatorHeader                = "X-Initiator"
+
 	// Default editor header values (VSCode pattern) - from LiteLLM
 	DefaultEditorVersion       = "vscode/1.95.0"
 	DefaultEditorPluginVersion = "copilot-chat/0.26.7"
 	DefaultUserAgent           = "GitHubCopilotChat/0.26.7"
+	
 	// DefaultOpenAIIntent is used for proper quota aggregation (matches OpenCode behavior).
 	DefaultOpenAIIntent         = "conversation-edits"
 	DefaultCopilotIntegrationID = "vscode-chat"

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +11,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/looplj/axonhub/internal/contexts"
+	"github.com/looplj/axonhub/internal/ent"
+	"github.com/looplj/axonhub/internal/log"
 	"github.com/looplj/axonhub/internal/server/biz"
 )
 
@@ -28,6 +31,10 @@ type OIDCHandlerParams struct {
 }
 
 func NewOIDCHandlers(params OIDCHandlerParams) *OIDCHandlers {
+	if params.OIDCService.CountProviders() > 0 && params.PublicURL == "" {
+		log.Warn(contexts.WithUser(context.Background(), &ent.User{IsOwner: true}), "OIDC is enabled but server.public_url is not configured. This is insecure and can lead to Host header injection attacks in production.")
+	}
+
 	return &OIDCHandlers{
 		oidc:      params.OIDCService,
 		auth:      params.AuthService,

@@ -42,6 +42,7 @@ type ProviderInfo struct {
 	IconURL          string `json:"icon_url"`
 	ButtonColor      string `json:"button_color"`
 	Active           bool   `json:"active"`
+	OIDCLoginOnly    bool   `json:"oidc_login_only"`
 	LastCheck        int64  `json:"last_check,omitempty"`
 	IsLinked         bool   `json:"is_linked"`
 	LinkedIdentityID string `json:"linked_identity_id,omitempty"`
@@ -164,10 +165,11 @@ type OIDCService struct {
 
 	cfg OIDCConfig
 
-	cache     xcache.Cache[[]byte]
-	mu        sync.Mutex
-	providers map[string]*oidcProvider
-	lastCheck map[string]int64
+	cache         xcache.Cache[[]byte]
+	mu            sync.Mutex
+	providers     map[string]*oidcProvider
+	lastCheck     map[string]int64
+	exchangeLocks sync.Map // per-code locks to prevent concurrent exchange code reuse
 }
 
 type oidcProvider struct {
@@ -428,12 +430,13 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 		}
 
 		info := ProviderInfo{
-			ID:          providerID,
-			Name:        p.Name,
-			DisplayName: displayName,
-			JITEnabled:  p.JITEnabled,
-			IconURL:     p.IconURL,
-			ButtonColor: p.ButtonColor,
+			ID:            providerID,
+			Name:          p.Name,
+			DisplayName:   displayName,
+			JITEnabled:    p.JITEnabled,
+			IconURL:       p.IconURL,
+			ButtonColor:   p.ButtonColor,
+			OIDCLoginOnly: p.OIDCLoginOnly,
 		}
 
 		ok, lastCheck := s.getProviderInfo(providerID)
@@ -453,6 +456,43 @@ func (s *OIDCService) GetProviders(ctx context.Context) []ProviderInfo {
 	}
 
 	return providers
+}
+
+// IsUserRestrictedToOIDC checks if the user is required to login via OIDC only
+// because they are linked to an OIDC provider that has OIDCLoginOnly enabled.
+func (s *OIDCService) IsUserRestrictedToOIDC(ctx context.Context, u *ent.User) bool {
+	if u == nil {
+		return false
+	}
+
+	// 1. Check if user's password is the magic placeholder
+	if u.Password == OIDC_ONLY_PLACEHOLDER {
+		return true
+	}
+
+	// 2. Check if any of the user's linked OIDC providers have OIDCLoginOnly enabled
+	identities := u.Edges.OidcIdentities
+	if len(identities) == 0 {
+		// Try to fetch them if not loaded
+		var err error
+		identities, err = s.entFromContext(ctx).OIDCIdentity.Query().
+			Where(oidcidentity.UserID(u.ID)).
+			All(ctx)
+		if err != nil {
+			log.Error(ctx, "failed to query user OIDC identities", zap.Error(err), log.Int("user_id", u.ID))
+			return false
+		}
+	}
+
+	for _, id := range identities {
+		for _, p := range s.cfg.Providers {
+			if p.issuer() == id.Issuer && p.OIDCLoginOnly {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (s *OIDCService) GetAuthorizeURL(ctx context.Context, providerIdentifier string, baseURL string) (string, string, error) {
@@ -1037,11 +1077,6 @@ func (s *OIDCService) syncUserInfo(ctx context.Context, u *ent.User, name, given
 		update.SetAvatar(picture)
 	}
 
-	// Enforce OIDC Only if configured, but ONLY if the user doesn't already have a local password set
-	if cfg.OIDCLoginOnly && (u.Password == "" || u.Password == OIDC_ONLY_PLACEHOLDER) {
-		update.SetPassword(OIDC_ONLY_PLACEHOLDER)
-	}
-
 	// Sync roles/scopes
 	if cfg.SyncRoleStrategy != "create_only" {
 		if err := s.applyRoleMappings(ctx, update.Mutation(), groups, cfg, false); err != nil {
@@ -1069,12 +1104,17 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 	// Flatten matching groups
 	for _, group := range groups {
 		for _, rule := range cfg.RoleMappingRules {
+			matchGroup := rule.MatchGroup
+			if !cfg.GroupParser.CaseSensitive {
+				matchGroup = strings.ToLower(matchGroup)
+			}
+
 			matched := false
 			if rule.IsRegex {
-				matched, _ = regexp.MatchString(rule.MatchGroup, group)
+				matched, _ = regexp.MatchString(matchGroup, group)
 			} else {
-				matched, _ = filepath.Match(rule.MatchGroup, group)
-				if !matched && rule.MatchGroup == group {
+				matched, _ = filepath.Match(matchGroup, group)
+				if !matched && matchGroup == group {
 					// Fallback to strict string match if glob syntax fails
 					matched = true
 				}
@@ -1173,7 +1213,12 @@ func (s *OIDCService) applyRoleMappings(ctx context.Context, m ent.Mutation, gro
 		}
 	} else {
 		// No DB roles to map, if strategy is always, clear existing roles
-		if !isCreate && cfg.SyncRoleStrategy == "always" {
+		strategy := cfg.SyncRoleStrategy
+		if strategy == "" {
+			strategy = "always"
+		}
+
+		if !isCreate && strategy == "always" {
 			um.ClearRoles()
 		}
 	}
@@ -1200,19 +1245,38 @@ func (s *OIDCService) ExchangeCode(ctx context.Context, code string) (*ent.User,
 
 	cacheKey := "oidc_exchange:" + code
 
-	userIDBytes, err := s.cache.
-		Get(ctx, cacheKey)
+	// Acquire a per-code lock to prevent concurrent redemption of the same exchange code.
+	// Without this, two concurrent requests could both pass the Get check before either
+	// executes Delete, resulting in multiple valid JWTs for a single code.
+	lock := &sync.Mutex{}
+
+	actual, loaded := s.exchangeLocks.LoadOrStore(cacheKey, lock)
+	if loaded {
+		var ok bool
+		lock, ok = actual.(*sync.Mutex)
+		if !ok {
+			return nil, fmt.Errorf("internal error: invalid exchange lock type")
+		}
+	}
+
+	lock.Lock()
+	defer func() {
+		lock.Unlock()
+		s.exchangeLocks.Delete(cacheKey)
+	}()
+
+	userIDBytes, err := s.cache.Get(ctx, cacheKey)
 	if err != nil {
 		return nil, fmt.Errorf("invalid or expired exchange code")
 	}
+
+	// Delete the code immediately so it can only be used once
+	_ = s.cache.Delete(ctx, cacheKey)
 
 	userID, err := strconv.Atoi(string(userIDBytes))
 	if err != nil {
 		return nil, fmt.Errorf("invalid user ID format in cache: %w", err)
 	}
-
-	// Delete the code so it can only be used once
-	_ = s.cache.Delete(ctx, cacheKey)
 
 	user, err := s.entFromContext(ctx).User.Get(ctx, userID)
 	if err != nil {
