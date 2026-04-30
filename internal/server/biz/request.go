@@ -1116,6 +1116,23 @@ func (s *RequestService) LoadResponseChunks(ctx context.Context, req *ent.Reques
 	return chunks, nil
 }
 
+// LoadRequestHeaders returns the request headers.
+func (s *RequestService) LoadRequestHeaders(ctx context.Context, req *ent.Request) (objects.JSONRawMessage, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is nil")
+	}
+
+	if req.RequestHeaders != nil {
+		return req.RequestHeaders, nil
+	}
+
+	dbReq, err := s.db.Request.Query().Where(request.IDEQ(req.ID)).Select(request.FieldRequestHeaders).Only(ctx)
+	if err != nil || dbReq.RequestHeaders == nil {
+		return objects.JSONRawMessage("{}"), nil
+	}
+	return dbReq.RequestHeaders, nil
+}
+
 // LoadRequestExecutionRequestBody returns the execution request body, loading from external storage when necessary.
 func (s *RequestService) LoadRequestExecutionRequestBody(ctx context.Context, exec *ent.RequestExecution) (objects.JSONRawMessage, error) {
 	if exec == nil {
@@ -1251,6 +1268,40 @@ func (s *RequestService) LoadRequestExecutionResponseChunks(ctx context.Context,
 	}
 
 	return []objects.JSONRawMessage{}, nil
+}
+
+// LoadRequestHeaders returns the request headers.
+func (s *RequestService) LoadRequestHeaders(ctx context.Context, req *ent.Request) (objects.JSONRawMessage, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is nil")
+	}
+
+	if req.RequestHeaders != nil {
+		return req.RequestHeaders, nil
+	}
+
+	dbReq, err := s.db.Request.Query().Where(request.IDEQ(req.ID)).Select(request.FieldRequestHeaders).Only(ctx)
+	if err != nil || dbReq.RequestHeaders == nil {
+		return objects.JSONRawMessage("{}"), nil
+	}
+	return dbReq.RequestHeaders, nil
+}
+
+// LoadRequestExecutionRequestHeaders returns the execution request headers.
+func (s *RequestService) LoadRequestExecutionRequestHeaders(ctx context.Context, exec *ent.RequestExecution) (objects.JSONRawMessage, error) {
+	if exec == nil {
+		return nil, fmt.Errorf("request execution is nil")
+	}
+
+	if exec.RequestHeaders != nil {
+		return exec.RequestHeaders, nil
+	}
+
+	dbExec, err := s.db.RequestExecution.Query().Where(requestexecution.IDEQ(exec.ID)).Select(requestexecution.FieldRequestHeaders).Only(ctx)
+	if err != nil || dbExec.RequestHeaders == nil {
+		return objects.JSONRawMessage("{}"), nil
+	}
+	return dbExec.RequestHeaders, nil
 }
 
 func (s *RequestService) GetTraceFirstRequest(ctx context.Context, traceID int) (*ent.Request, error) {

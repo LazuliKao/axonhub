@@ -890,12 +890,14 @@ extend type Query {
 }
 
 extend type Request {
+  requestHeaders: JSONRawMessage @goField(forceResolver: true)
   requestBody: Any @goField(forceResolver: true)
   responseBody: Any @goField(forceResolver: true)
   responseChunks: [Any!] @goField(forceResolver: true)
 }
 
 extend type RequestExecution {
+  requestHeaders: JSONRawMessage @goField(forceResolver: true)
   requestBody: Any @goField(forceResolver: true)
   responseBody: Any @goField(forceResolver: true)
   responseChunks: [Any!] @goField(forceResolver: true)

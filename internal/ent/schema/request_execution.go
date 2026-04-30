@@ -35,6 +35,9 @@ func (RequestExecution) Indexes() []ent.Index {
 			StorageKey("request_executions_by_channel_id_created_at"),
 		index.Fields("created_at").
 			StorageKey("request_executions_by_created_at"),
+		// Dedicated index for pagination: (request_id, created_at, id)
+		index.Fields("request_id", "created_at", "id").
+			StorageKey("request_executions_by_request_id_created_at_id"),
 	}
 }
 
@@ -88,7 +91,11 @@ func (RequestExecution) Fields() []ent.Field {
 		// Request headers
 		field.JSON("request_headers", objects.JSONRawMessage{}).
 			Optional().
-			Comment("Request headers"),
+			Comment("Request headers").
+			Annotations(
+				entgql.Skip(entgql.SkipType),
+				entgql.Directives(forceResolver()),
+			),
 	}
 }
 
@@ -146,7 +153,6 @@ func (RequestExecution) Interceptors() []ent.Interceptor {
 									"external_id", "model_id", "format",
 									"error_message", "response_status_code", "status", "stream",
 									"metrics_latency_ms", "metrics_first_token_latency_ms", "metrics_reasoning_duration_ms",
-									"request_headers",
 								)
 							})
 						}

@@ -70,7 +70,11 @@ func (Request) Fields() []ent.Field {
 		// Request headers
 		field.JSON("request_headers", objects.JSONRawMessage{}).
 			Optional().
-			Comment("Request headers"),
+			Comment("Request headers").
+			Annotations(
+				entgql.Skip(entgql.SkipType),
+				entgql.Directives(forceResolver()),
+			),
 		// The original request from the user.
 		// e.g: the user request via OpenAI request format, but the actual request to the provider with Claude format, the request_body is the OpenAI request format.
 		field.JSON("request_body", objects.JSONRawMessage{}).
@@ -197,7 +201,7 @@ func (Request) Interceptors() []ent.Interceptor {
 								s.Select(
 									"id", "created_at", "updated_at",
 									"api_key_id", "project_id", "trace_id", "data_storage_id",
-									"source", "model_id", "reasoning_effort", "format", "request_headers",
+									"source", "model_id", "reasoning_effort", "format",
 									"channel_id", "external_id", "status", "stream", "client_ip",
 									"metrics_latency_ms", "metrics_first_token_latency_ms", "metrics_reasoning_duration_ms",
 									"content_saved", "content_storage_id", "content_storage_key", "content_saved_at",
