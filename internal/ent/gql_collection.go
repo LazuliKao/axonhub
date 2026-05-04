@@ -3849,11 +3849,6 @@ func (_q *RequestQuery) collectField(ctx context.Context, oneNode bool, opCtx *g
 				selectedFields = append(selectedFields, request.FieldFormat)
 				fieldSeen[request.FieldFormat] = struct{}{}
 			}
-		case "requestHeaders":
-			if _, ok := fieldSeen[request.FieldRequestHeaders]; !ok {
-				selectedFields = append(selectedFields, request.FieldRequestHeaders)
-				fieldSeen[request.FieldRequestHeaders] = struct{}{}
-			}
 		case "channelID":
 			if _, ok := fieldSeen[request.FieldChannelID]; !ok {
 				selectedFields = append(selectedFields, request.FieldChannelID)
@@ -4122,11 +4117,6 @@ func (_q *RequestExecutionQuery) collectField(ctx context.Context, oneNode bool,
 			if _, ok := fieldSeen[requestexecution.FieldMetricsReasoningDurationMs]; !ok {
 				selectedFields = append(selectedFields, requestexecution.FieldMetricsReasoningDurationMs)
 				fieldSeen[requestexecution.FieldMetricsReasoningDurationMs] = struct{}{}
-			}
-		case "requestHeaders":
-			if _, ok := fieldSeen[requestexecution.FieldRequestHeaders]; !ok {
-				selectedFields = append(selectedFields, requestexecution.FieldRequestHeaders)
-				fieldSeen[requestexecution.FieldRequestHeaders] = struct{}{}
 			}
 		case "id":
 		case "__typename":

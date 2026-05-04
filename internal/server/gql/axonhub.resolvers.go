@@ -784,23 +784,23 @@ func (r *queryResolver) APIKeyQuotaUsages(ctx context.Context, apiKeyID objects.
 	return result, nil
 }
 
-// RequestBody is the resolver for the requestBody field.
-func (r *requestResolver) RequestBody(ctx context.Context, obj *ent.Request) (any, error) {
-	value, err := r.requestService.LoadRequestBody(ctx, obj)
-	if err != nil {
-		log.Error(ctx, "Failed to load request body", log.Cause(err), log.Int("request_id", obj.ID))
-		return nil, fmt.Errorf("failed to load request body: %w", err)
-	}
-
-	return value, nil
-}
-
 // RequestHeaders is the resolver for the requestHeaders field.
 func (r *requestResolver) RequestHeaders(ctx context.Context, obj *ent.Request) (objects.JSONRawMessage, error) {
 	value, err := r.requestService.LoadRequestHeaders(ctx, obj)
 	if err != nil {
 		log.Error(ctx, "Failed to load request headers", log.Cause(err), log.Int("request_id", obj.ID))
 		return nil, fmt.Errorf("failed to load request headers: %w", err)
+	}
+
+	return value, nil
+}
+
+// RequestBody is the resolver for the requestBody field.
+func (r *requestResolver) RequestBody(ctx context.Context, obj *ent.Request) (any, error) {
+	value, err := r.requestService.LoadRequestBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load request body", log.Cause(err), log.Int("request_id", obj.ID))
+		return nil, fmt.Errorf("failed to load request body: %w", err)
 	}
 
 	return value, nil
@@ -838,23 +838,23 @@ func (r *requestResolver) ResponseChunks(ctx context.Context, obj *ent.Request) 
 	return res, nil
 }
 
-// RequestBody is the resolver for the requestBody field.
-func (r *requestExecutionResolver) RequestBody(ctx context.Context, obj *ent.RequestExecution) (any, error) {
-	value, err := r.requestService.LoadRequestExecutionRequestBody(ctx, obj)
-	if err != nil {
-		log.Error(ctx, "Failed to load execution request body", log.Cause(err), log.Int("request_execution_id", obj.ID))
-		return nil, fmt.Errorf("failed to load request body: %w", err)
-	}
-
-	return value, nil
-}
-
 // RequestHeaders is the resolver for the requestHeaders field.
 func (r *requestExecutionResolver) RequestHeaders(ctx context.Context, obj *ent.RequestExecution) (objects.JSONRawMessage, error) {
 	value, err := r.requestService.LoadRequestExecutionRequestHeaders(ctx, obj)
 	if err != nil {
 		log.Error(ctx, "Failed to load execution request headers", log.Cause(err), log.Int("request_execution_id", obj.ID))
 		return nil, fmt.Errorf("failed to load request headers: %w", err)
+	}
+
+	return value, nil
+}
+
+// RequestBody is the resolver for the requestBody field.
+func (r *requestExecutionResolver) RequestBody(ctx context.Context, obj *ent.RequestExecution) (any, error) {
+	value, err := r.requestService.LoadRequestExecutionRequestBody(ctx, obj)
+	if err != nil {
+		log.Error(ctx, "Failed to load execution request body", log.Cause(err), log.Int("request_execution_id", obj.ID))
+		return nil, fmt.Errorf("failed to load request body: %w", err)
 	}
 
 	return value, nil

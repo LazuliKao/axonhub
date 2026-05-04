@@ -4422,10 +4422,6 @@ type Request implements Node {
   """
   reasoningEffort: String
   format: String!
-  """
-  Request headers
-  """
-  requestHeaders: JSONRawMessage
   channelID: ID
   externalID: String
   status: RequestStatus!
@@ -4578,10 +4574,6 @@ type RequestExecution implements Node {
   Reasoning/thinking duration in milliseconds
   """
   metricsReasoningDurationMs: Int
-  """
-  Request headers
-  """
-  requestHeaders: JSONRawMessage
   request: Request!
   channel: Channel @goField(forceResolver: true)
   dataStorage: DataStorage
