@@ -143,6 +143,8 @@ func (r *mutationResolver) UpdateSystemGeneralSettings(ctx context.Context, inpu
 		return false, fmt.Errorf("failed to update general settings: %w", err)
 	}
 
+	r.backupService.Reschedule(ctx, r.scheduler)
+
 	return true, nil
 }
 
@@ -152,6 +154,8 @@ func (r *mutationResolver) UpdateVideoStorageSettings(ctx context.Context, input
 	if err != nil {
 		return false, fmt.Errorf("failed to update video storage settings: %w", err)
 	}
+
+	r.videoWorker.Reschedule(ctx, r.scheduler)
 
 	return true, nil
 }
@@ -239,6 +243,16 @@ func (r *mutationResolver) UpdateUserAgentPassThroughSettings(ctx context.Contex
 	err := r.systemService.SetUserAgentPassThrough(ctx, input.Enabled)
 	if err != nil {
 		return false, fmt.Errorf("failed to update user-agent pass-through settings: %w", err)
+	}
+
+	return true, nil
+}
+
+// UpdatePassThroughSettings is the resolver for the updatePassThroughSettings field.
+func (r *mutationResolver) UpdatePassThroughSettings(ctx context.Context, input UpdatePassThroughSettingsInput) (bool, error) {
+	err := r.systemService.SetPassThrough(ctx, input.Enabled)
+	if err != nil {
+		return false, fmt.Errorf("failed to update pass-through settings: %w", err)
 	}
 
 	return true, nil
@@ -439,6 +453,18 @@ func (r *queryResolver) UserAgentPassThroughSettings(ctx context.Context) (*User
 	}
 
 	return &UserAgentPassThroughSettings{
+		Enabled: enabled,
+	}, nil
+}
+
+// PassThroughSettings is the resolver for the passThroughSettings field.
+func (r *queryResolver) PassThroughSettings(ctx context.Context) (*PassThroughSettings, error) {
+	enabled, err := r.systemService.PassThrough(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pass-through settings: %w", err)
+	}
+
+	return &PassThroughSettings{
 		Enabled: enabled,
 	}, nil
 }

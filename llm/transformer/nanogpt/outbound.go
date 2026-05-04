@@ -45,6 +45,7 @@ func NewOutboundTransformerWithConfig(config *Config) (transformer.Outbound, err
 		PlatformType:   openai.PlatformOpenAI,
 		BaseURL:        config.BaseURL,
 		APIKeyProvider: config.APIKeyProvider,
+		ReasoningField: openai.ReasoningFieldReasoning,
 	}
 
 	t, err := openai.NewOutboundTransformerWithConfig(oaiConfig)
@@ -110,7 +111,7 @@ func (t *OutboundTransformer) TransformResponse(
 }
 
 // TransformStream transforms a stream of HTTP events to a stream of llm.Response.
-func (t *OutboundTransformer) TransformStream(ctx context.Context, stream streams.Stream[*httpclient.StreamEvent]) (streams.Stream[*llm.Response], error) {
+func (t *OutboundTransformer) TransformStream(ctx context.Context, req *httpclient.Request, stream streams.Stream[*httpclient.StreamEvent]) (streams.Stream[*llm.Response], error) {
 	// Filter out upstream DONE events
 	filteredStream := streams.Filter(stream, func(event *httpclient.StreamEvent) bool {
 		return !bytes.HasPrefix(event.Data, []byte("[DONE]"))
@@ -155,6 +156,6 @@ func nanoGPTChunkTransform(ctx context.Context, chunk *httpclient.StreamEvent) (
 }
 
 // AggregateStreamChunks aggregates stream chunks into a single response.
-func (t *OutboundTransformer) AggregateStreamChunks(ctx context.Context, chunks []*httpclient.StreamEvent) ([]byte, llm.ResponseMeta, error) {
+func (t *OutboundTransformer) AggregateStreamChunks(ctx context.Context, _ *httpclient.Request, chunks []*httpclient.StreamEvent) ([]byte, llm.ResponseMeta, error) {
 	return openai.AggregateStreamChunks(ctx, chunks, nanoGPTChunkTransform)
 }

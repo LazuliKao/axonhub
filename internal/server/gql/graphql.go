@@ -19,6 +19,7 @@ import (
 
 	"github.com/looplj/axonhub/internal/ent"
 	"github.com/looplj/axonhub/internal/ent/apikey"
+	"github.com/looplj/axonhub/internal/ent/apikeyprofiletemplate"
 	"github.com/looplj/axonhub/internal/ent/channel"
 	"github.com/looplj/axonhub/internal/ent/channeloverridetemplate"
 	"github.com/looplj/axonhub/internal/ent/channelprobe"
@@ -41,6 +42,8 @@ import (
 	"github.com/looplj/axonhub/internal/server/biz"
 	"github.com/looplj/axonhub/internal/server/gc"
 	"github.com/looplj/axonhub/internal/server/orchestrator"
+	"github.com/looplj/axonhub/internal/server/scheduler"
+	"github.com/looplj/axonhub/internal/server/video_storage"
 	"github.com/looplj/axonhub/llm/httpclient"
 )
 
@@ -61,17 +64,20 @@ type Dependencies struct {
 	ThreadService                  *biz.ThreadService
 	UsageLogService                *biz.UsageLogService
 	ChannelOverrideTemplateService *biz.ChannelOverrideTemplateService
+	APIKeyProfileTemplateService   *biz.APIKeyProfileTemplateService
 	ModelService                   *biz.ModelService
 	BackupService                  *backup.BackupService
 	ChannelProbeService            *biz.ChannelProbeService
 	PromptService                  *biz.PromptService
 	PromptProtectionRuleService    *biz.PromptProtectionRuleService
 	ProviderQuotaService           *biz.ProviderQuotaService
+	Scheduler                      *scheduler.Scheduler
 	DefaultSelector                *orchestrator.DefaultSelector
 	CandidateSelectorDiagnostics   *orchestrator.CandidateSelectorDiagnostics
 	ChannelLimiterManager          *orchestrator.ChannelLimiterManager
 	HttpClient                     *httpclient.HttpClient
 	GCWorker                       *gc.Worker
+	VideoWorker                    *video_storage.Worker
 }
 
 type GraphqlHandler struct {
@@ -96,17 +102,20 @@ func NewGraphqlHandlers(deps Dependencies) *GraphqlHandler {
 			deps.ThreadService,
 			deps.UsageLogService,
 			deps.ChannelOverrideTemplateService,
+			deps.APIKeyProfileTemplateService,
 			deps.ModelService,
 			deps.BackupService,
 			deps.ChannelProbeService,
 			deps.PromptService,
 			deps.PromptProtectionRuleService,
 			deps.ProviderQuotaService,
+			deps.Scheduler,
 			deps.DefaultSelector,
 			deps.CandidateSelectorDiagnostics,
 			deps.ChannelLimiterManager,
 			deps.HttpClient,
 			deps.GCWorker,
+			deps.VideoWorker,
 		),
 	)
 
@@ -159,6 +168,7 @@ func NewGraphqlHandlers(deps Dependencies) *GraphqlHandler {
 var guidTypeToNodeType = map[string]string{
 	ent.TypeUser:                    user.Table,
 	ent.TypeAPIKey:                  apikey.Table,
+	ent.TypeAPIKeyProfileTemplate:   apikeyprofiletemplate.Table,
 	ent.TypeModel:                   model.Table,
 	ent.TypeChannel:                 channel.Table,
 	ent.TypeChannelProbe:            channelprobe.Table,

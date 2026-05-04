@@ -60,6 +60,38 @@ var (
 			},
 		},
 	}
+	// APIKeyProfileTemplatesColumns holds the columns for the "api_key_profile_templates" table.
+	APIKeyProfileTemplatesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "updated_at", Type: field.TypeTime, Default: schema.Expr("CURRENT_TIMESTAMP")},
+		{Name: "deleted_at", Type: field.TypeInt, Default: 0},
+		{Name: "name", Type: field.TypeString},
+		{Name: "description", Type: field.TypeString, Default: ""},
+		{Name: "profile", Type: field.TypeJSON, Nullable: true},
+		{Name: "project_id", Type: field.TypeInt},
+	}
+	// APIKeyProfileTemplatesTable holds the schema information for the "api_key_profile_templates" table.
+	APIKeyProfileTemplatesTable = &schema.Table{
+		Name:       "api_key_profile_templates",
+		Columns:    APIKeyProfileTemplatesColumns,
+		PrimaryKey: []*schema.Column{APIKeyProfileTemplatesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "api_key_profile_templates_projects_api_key_profile_templates",
+				Columns:    []*schema.Column{APIKeyProfileTemplatesColumns[7]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "api_key_profile_templates_by_project_name",
+				Unique:  true,
+				Columns: []*schema.Column{APIKeyProfileTemplatesColumns[7], APIKeyProfileTemplatesColumns[4], APIKeyProfileTemplatesColumns[3]},
+			},
+		},
+	}
 	// ChannelsColumns holds the columns for the "channels" table.
 	ChannelsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -358,7 +390,7 @@ var (
 		{Name: "name", Type: field.TypeString},
 		{Name: "description", Type: field.TypeString, Default: ""},
 		{Name: "role", Type: field.TypeString},
-		{Name: "content", Type: field.TypeString},
+		{Name: "content", Type: field.TypeString, SchemaType: map[string]string{"mysql": "longtext"}},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"enabled", "disabled"}, Default: "disabled"},
 		{Name: "order", Type: field.TypeInt, Default: 0},
 		{Name: "settings", Type: field.TypeJSON},
@@ -610,6 +642,11 @@ var (
 				Name:    "request_executions_by_created_at",
 				Unique:  false,
 				Columns: []*schema.Column{RequestExecutionsColumns[1]},
+			},
+			{
+				Name:    "request_executions_by_request_id_created_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{RequestExecutionsColumns[20], RequestExecutionsColumns[1], RequestExecutionsColumns[0]},
 			},
 		},
 	}
@@ -970,6 +1007,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APIKeysTable,
+		APIKeyProfileTemplatesTable,
 		ChannelsTable,
 		ChannelModelPricesTable,
 		ChannelModelPriceVersionsTable,
@@ -999,6 +1037,7 @@ var (
 func init() {
 	APIKeysTable.ForeignKeys[0].RefTable = ProjectsTable
 	APIKeysTable.ForeignKeys[1].RefTable = UsersTable
+	APIKeyProfileTemplatesTable.ForeignKeys[0].RefTable = ProjectsTable
 	ChannelModelPricesTable.ForeignKeys[0].RefTable = ChannelsTable
 	ChannelModelPriceVersionsTable.ForeignKeys[0].RefTable = ChannelModelPricesTable
 	ChannelOverrideTemplatesTable.ForeignKeys[0].RefTable = UsersTable

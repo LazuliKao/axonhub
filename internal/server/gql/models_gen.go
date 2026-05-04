@@ -279,6 +279,11 @@ type InitializeSystemPayload struct {
 	Token   *string   `json:"token,omitempty"`
 }
 
+type LoadAPIKeyProfileTemplateInput struct {
+	TemplateID objects.GUID `json:"templateID"`
+	APIKeyID   objects.GUID `json:"apiKeyID"`
+}
+
 // Performance statistics for a specific model on a given date
 type ModelPerformanceStat struct {
 	Date         string   `json:"date"`
@@ -309,6 +314,10 @@ type OnboardingInfo struct {
 	CompletedAt        *time.Time                    `json:"completedAt,omitempty"`
 	SystemModelSetting *SystemModelSettingOnboarding `json:"systemModelSetting,omitempty"`
 	AutoDisableChannel *AutoDisableChannelOnboarding `json:"autoDisableChannel,omitempty"`
+}
+
+type PassThroughSettings struct {
+	Enabled bool `json:"enabled"`
 }
 
 type PromptProtectionRulePreviewInput struct {
@@ -514,6 +523,10 @@ type UpdateMeInput struct {
 type UpdateMyPasswordInput struct {
 	OldPassword *string `json:"oldPassword,omitempty"`
 	NewPassword string  `json:"newPassword"`
+}
+
+type UpdatePassThroughSettingsInput struct {
+	Enabled bool `json:"enabled"`
 }
 
 type UpdateProjectUserInput struct {

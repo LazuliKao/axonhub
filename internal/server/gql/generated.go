@@ -63,6 +63,7 @@ type Config struct {
 
 type ResolverRoot interface {
 	APIKey() APIKeyResolver
+	APIKeyProfileTemplate() APIKeyProfileTemplateResolver
 	Channel() ChannelResolver
 	ChannelModelPrice() ChannelModelPriceResolver
 	ChannelModelPriceVersion() ChannelModelPriceVersionResolver
@@ -141,6 +142,28 @@ type ComplexityRoot struct {
 		Quota       func(childComplexity int) int
 		Usage       func(childComplexity int) int
 		Window      func(childComplexity int) int
+	}
+
+	APIKeyProfileTemplate struct {
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Profile     func(childComplexity int) int
+		Project     func(childComplexity int) int
+		ProjectID   func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+	}
+
+	APIKeyProfileTemplateConnection struct {
+		Edges      func(childComplexity int) int
+		PageInfo   func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
+
+	APIKeyProfileTemplateEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
 	}
 
 	APIKeyProfiles struct {
@@ -473,6 +496,7 @@ type ComplexityRoot struct {
 		HeaderOverrideOperations func(childComplexity int) int
 		HideMappedModels         func(childComplexity int) int
 		HideOriginalModels       func(childComplexity int) int
+		LowercaseModelID         func(childComplexity int) int
 		ModelMappings            func(childComplexity int) int
 		PassThroughBody          func(childComplexity int) int
 		PassThroughUserAgent     func(childComplexity int) int
@@ -851,6 +875,7 @@ type ComplexityRoot struct {
 		CompleteOnboarding                   func(childComplexity int, input CompleteOnboardingInput) int
 		CompleteSystemModelSettingOnboarding func(childComplexity int, input CompleteSystemModelSettingOnboardingInput) int
 		CreateAPIKey                         func(childComplexity int, input ent.CreateAPIKeyInput) int
+		CreateAPIKeyProfileTemplate          func(childComplexity int, input ent.CreateAPIKeyProfileTemplateInput, profile objects.APIKeyProfile) int
 		CreateChannel                        func(childComplexity int, input ent.CreateChannelInput) int
 		CreateChannelOverrideTemplate        func(childComplexity int, input ent.CreateChannelOverrideTemplateInput) int
 		CreateDataStorage                    func(childComplexity int, input ent.CreateDataStorageInput) int
@@ -860,6 +885,7 @@ type ComplexityRoot struct {
 		CreatePromptProtectionRule           func(childComplexity int, input ent.CreatePromptProtectionRuleInput) int
 		CreateRole                           func(childComplexity int, input ent.CreateRoleInput) int
 		CreateUser                           func(childComplexity int, input ent.CreateUserInput) int
+		DeleteAPIKeyProfileTemplate          func(childComplexity int, id objects.GUID) int
 		DeleteChannel                        func(childComplexity int, id objects.GUID) int
 		DeleteChannelOverrideTemplate        func(childComplexity int, id objects.GUID) int
 		DeleteDisabledChannelAPIKeys         func(childComplexity int, channelID objects.GUID, keys []string) int
@@ -874,6 +900,7 @@ type ComplexityRoot struct {
 		EnableAllChannelAPIKeys              func(childComplexity int, channelID objects.GUID) int
 		EnableChannelAPIKey                  func(childComplexity int, channelID objects.GUID, key string) int
 		EnableSelectedChannelAPIKeys         func(childComplexity int, channelID objects.GUID, keys []string) int
+		LoadAPIKeyProfileTemplate            func(childComplexity int, input LoadAPIKeyProfileTemplateInput) int
 		PreviewPromptProtectionRule          func(childComplexity int, input PromptProtectionRulePreviewInput) int
 		RemoveUserFromProject                func(childComplexity int, input RemoveUserFromProjectInput) int
 		Restore                              func(childComplexity int, file graphql.Upload, input backup.RestoreOptions) int
@@ -887,6 +914,7 @@ type ComplexityRoot struct {
 		TriggerGcCleanup                     func(childComplexity int) int
 		UnlinkOIDCIdentity                   func(childComplexity int, id objects.GUID) int
 		UpdateAPIKey                         func(childComplexity int, id objects.GUID, input ent.UpdateAPIKeyInput) int
+		UpdateAPIKeyProfileTemplate          func(childComplexity int, id objects.GUID, input ent.UpdateAPIKeyProfileTemplateInput, profile *objects.APIKeyProfile) int
 		UpdateAPIKeyProfiles                 func(childComplexity int, id objects.GUID, input objects.APIKeyProfiles) int
 		UpdateAPIKeyStatus                   func(childComplexity int, id objects.GUID, status apikey.Status) int
 		UpdateAutoBackupSettings             func(childComplexity int, input UpdateAutoBackupSettingsInput) int
@@ -900,6 +928,7 @@ type ComplexityRoot struct {
 		UpdateModel                          func(childComplexity int, id objects.GUID, input ent.UpdateModelInput) int
 		UpdateModelStatus                    func(childComplexity int, id objects.GUID, status model.Status) int
 		UpdateMyPassword                     func(childComplexity int, input UpdateMyPasswordInput) int
+		UpdatePassThroughSettings            func(childComplexity int, input UpdatePassThroughSettingsInput) int
 		UpdateProject                        func(childComplexity int, id objects.GUID, input ent.UpdateProjectInput) int
 		UpdateProjectProfiles                func(childComplexity int, id objects.GUID, input objects.ProjectProfiles) int
 		UpdateProjectStatus                  func(childComplexity int, id objects.GUID, status project.Status) int
@@ -988,6 +1017,10 @@ type ComplexityRoot struct {
 		StartCursor     func(childComplexity int) int
 	}
 
+	PassThroughSettings struct {
+		Enabled func(childComplexity int) int
+	}
+
 	PriceTier struct {
 		PricePerUnit func(childComplexity int) int
 		UpTo         func(childComplexity int) int
@@ -1001,22 +1034,23 @@ type ComplexityRoot struct {
 	}
 
 	Project struct {
-		APIKeys      func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.APIKeyOrder, where *ent.APIKeyWhereInput) int
-		CreatedAt    func(childComplexity int) int
-		Description  func(childComplexity int) int
-		ID           func(childComplexity int) int
-		Name         func(childComplexity int) int
-		Profiles     func(childComplexity int) int
-		ProjectUsers func(childComplexity int) int
-		Prompts      func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.PromptOrder, where *ent.PromptWhereInput) int
-		Requests     func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.RequestOrder, where *ent.RequestWhereInput) int
-		Roles        func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.RoleOrder, where *ent.RoleWhereInput) int
-		Status       func(childComplexity int) int
-		Threads      func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ThreadOrder, where *ent.ThreadWhereInput) int
-		Traces       func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.TraceOrder, where *ent.TraceWhereInput) int
-		UpdatedAt    func(childComplexity int) int
-		UsageLogs    func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.UsageLogOrder, where *ent.UsageLogWhereInput) int
-		Users        func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.UserOrder, where *ent.UserWhereInput) int
+		APIKeyProfileTemplates func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.APIKeyProfileTemplateOrder, where *ent.APIKeyProfileTemplateWhereInput) int
+		APIKeys                func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.APIKeyOrder, where *ent.APIKeyWhereInput) int
+		CreatedAt              func(childComplexity int) int
+		Description            func(childComplexity int) int
+		ID                     func(childComplexity int) int
+		Name                   func(childComplexity int) int
+		Profiles               func(childComplexity int) int
+		ProjectUsers           func(childComplexity int) int
+		Prompts                func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.PromptOrder, where *ent.PromptWhereInput) int
+		Requests               func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.RequestOrder, where *ent.RequestWhereInput) int
+		Roles                  func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.RoleOrder, where *ent.RoleWhereInput) int
+		Status                 func(childComplexity int) int
+		Threads                func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ThreadOrder, where *ent.ThreadWhereInput) int
+		Traces                 func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.TraceOrder, where *ent.TraceWhereInput) int
+		UpdatedAt              func(childComplexity int) int
+		UsageLogs              func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.UsageLogOrder, where *ent.UsageLogWhereInput) int
+		Users                  func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.UserOrder, where *ent.UserWhereInput) int
 	}
 
 	ProjectConnection struct {
@@ -1155,6 +1189,7 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
+		APIKeyProfileTemplates       func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.APIKeyProfileTemplateOrder, where *ent.APIKeyProfileTemplateWhereInput) int
 		APIKeyQuotaUsages            func(childComplexity int, apiKeyID objects.GUID) int
 		APIKeyTokenUsageStats        func(childComplexity int, input *APIKeyTokenUsageStatsInput) int
 		APIKeys                      func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.APIKeyOrder, where *ent.APIKeyWhereInput) int
@@ -1189,6 +1224,7 @@ type ComplexityRoot struct {
 		Nodes                        func(childComplexity int, ids []*objects.GUID) int
 		OidcIdentities               func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.OIDCIdentityOrder, where *ent.OIDCIdentityWhereInput) int
 		OnboardingInfo               func(childComplexity int) int
+		PassThroughSettings          func(childComplexity int) int
 		Projects                     func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ProjectOrder, where *ent.ProjectWhereInput) int
 		PromptProtectionRules        func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.PromptProtectionRuleOrder, where *ent.PromptProtectionRuleWhereInput) int
 		Prompts                      func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.PromptOrder, where *ent.PromptWhereInput) int
@@ -1886,6 +1922,11 @@ type APIKeyResolver interface {
 
 	User(ctx context.Context, obj *ent.APIKey) (*ent.User, error)
 }
+type APIKeyProfileTemplateResolver interface {
+	ID(ctx context.Context, obj *ent.APIKeyProfileTemplate) (*objects.GUID, error)
+
+	ProjectID(ctx context.Context, obj *ent.APIKeyProfileTemplate) (*objects.GUID, error)
+}
 type ChannelResolver interface {
 	ID(ctx context.Context, obj *ent.Channel) (*objects.GUID, error)
 
@@ -1988,6 +2029,10 @@ type MutationResolver interface {
 	ApplyChannelOverrideTemplate(ctx context.Context, input ApplyChannelOverrideTemplateInput) (*ApplyChannelOverrideTemplatePayload, error)
 	ClearChannelOverrideTemplates(ctx context.Context, input ClearChannelOverrideTemplatesInput) (*ClearChannelOverrideTemplatesPayload, error)
 	SyncChannelModels(ctx context.Context, channelID objects.GUID, pattern *string) (*SyncChannelModelsPayload, error)
+	CreateAPIKeyProfileTemplate(ctx context.Context, input ent.CreateAPIKeyProfileTemplateInput, profile objects.APIKeyProfile) (*ent.APIKeyProfileTemplate, error)
+	UpdateAPIKeyProfileTemplate(ctx context.Context, id objects.GUID, input ent.UpdateAPIKeyProfileTemplateInput, profile *objects.APIKeyProfile) (*ent.APIKeyProfileTemplate, error)
+	DeleteAPIKeyProfileTemplate(ctx context.Context, id objects.GUID) (*ent.APIKeyProfileTemplate, error)
+	LoadAPIKeyProfileTemplate(ctx context.Context, input LoadAPIKeyProfileTemplateInput) (*ent.APIKey, error)
 	UpdateMe(ctx context.Context, input UpdateMeInput) (*ent.User, error)
 	UpdateMyPassword(ctx context.Context, input UpdateMyPasswordInput) (bool, error)
 	UnlinkOIDCIdentity(ctx context.Context, id objects.GUID) (bool, error)
@@ -2009,6 +2054,7 @@ type MutationResolver interface {
 	SaveProxyPreset(ctx context.Context, input biz.ProxyPreset) (bool, error)
 	DeleteProxyPreset(ctx context.Context, url string) (bool, error)
 	UpdateUserAgentPassThroughSettings(ctx context.Context, input UpdateUserAgentPassThroughSettingsInput) (bool, error)
+	UpdatePassThroughSettings(ctx context.Context, input UpdatePassThroughSettingsInput) (bool, error)
 	ClearCache(ctx context.Context, input ClearCacheInput) (*ClearCachePayload, error)
 	CreateModel(ctx context.Context, input ent.CreateModelInput) (*ent.Model, error)
 	BulkCreateModels(ctx context.Context, inputs []*ent.CreateModelInput) ([]*ent.Model, error)
@@ -2065,6 +2111,7 @@ type QueryResolver interface {
 	Node(ctx context.Context, id objects.GUID) (ent.Noder, error)
 	Nodes(ctx context.Context, ids []*objects.GUID) ([]ent.Noder, error)
 	APIKeys(ctx context.Context, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.APIKeyOrder, where *ent.APIKeyWhereInput) (*ent.APIKeyConnection, error)
+	APIKeyProfileTemplates(ctx context.Context, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.APIKeyProfileTemplateOrder, where *ent.APIKeyProfileTemplateWhereInput) (*ent.APIKeyProfileTemplateConnection, error)
 	Channels(ctx context.Context, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ChannelOrder, where *ent.ChannelWhereInput) (*ent.ChannelConnection, error)
 	ChannelOverrideTemplates(ctx context.Context, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ChannelOverrideTemplateOrder, where *ent.ChannelOverrideTemplateWhereInput) (*ent.ChannelOverrideTemplateConnection, error)
 	DataStorages(ctx context.Context, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.DataStorageOrder, where *ent.DataStorageWhereInput) (*ent.DataStorageConnection, error)
@@ -2124,6 +2171,7 @@ type QueryResolver interface {
 	QuotaEnforcementSettings(ctx context.Context) (*biz.QuotaEnforcementSettings, error)
 	ProxyPresets(ctx context.Context) ([]*biz.ProxyPreset, error)
 	UserAgentPassThroughSettings(ctx context.Context) (*UserAgentPassThroughSettings, error)
+	PassThroughSettings(ctx context.Context) (*PassThroughSettings, error)
 	GetCacheDiagnostics(ctx context.Context, input *GetCacheDiagnosticsInput) (*GetCacheDiagnosticsPayload, error)
 	FetchModels(ctx context.Context, input biz.FetchModelsInput) (*FetchModelsPayload, error)
 	QueryModels(ctx context.Context, input QueryModelsInput) ([]*biz.ModelIdentityWithStatus, error)
@@ -2144,6 +2192,7 @@ type RequestResolver interface {
 
 	Channel(ctx context.Context, obj *ent.Request) (*ent.Channel, error)
 
+	RequestHeaders(ctx context.Context, obj *ent.Request) (objects.JSONRawMessage, error)
 	RequestBody(ctx context.Context, obj *ent.Request) (any, error)
 	ResponseBody(ctx context.Context, obj *ent.Request) (any, error)
 	ResponseChunks(ctx context.Context, obj *ent.Request) ([]any, error)
@@ -2157,6 +2206,7 @@ type RequestExecutionResolver interface {
 
 	Channel(ctx context.Context, obj *ent.RequestExecution) (*ent.Channel, error)
 
+	RequestHeaders(ctx context.Context, obj *ent.RequestExecution) (objects.JSONRawMessage, error)
 	RequestBody(ctx context.Context, obj *ent.RequestExecution) (any, error)
 	ResponseBody(ctx context.Context, obj *ent.RequestExecution) (any, error)
 	ResponseChunks(ctx context.Context, obj *ent.RequestExecution) ([]any, error)
@@ -2441,6 +2491,87 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.APIKeyProfileQuotaUsage.Window(childComplexity), true
+
+	case "APIKeyProfileTemplate.createdAt":
+		if e.complexity.APIKeyProfileTemplate.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplate.CreatedAt(childComplexity), true
+	case "APIKeyProfileTemplate.description":
+		if e.complexity.APIKeyProfileTemplate.Description == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplate.Description(childComplexity), true
+	case "APIKeyProfileTemplate.id":
+		if e.complexity.APIKeyProfileTemplate.ID == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplate.ID(childComplexity), true
+	case "APIKeyProfileTemplate.name":
+		if e.complexity.APIKeyProfileTemplate.Name == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplate.Name(childComplexity), true
+	case "APIKeyProfileTemplate.profile":
+		if e.complexity.APIKeyProfileTemplate.Profile == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplate.Profile(childComplexity), true
+	case "APIKeyProfileTemplate.project":
+		if e.complexity.APIKeyProfileTemplate.Project == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplate.Project(childComplexity), true
+	case "APIKeyProfileTemplate.projectID":
+		if e.complexity.APIKeyProfileTemplate.ProjectID == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplate.ProjectID(childComplexity), true
+	case "APIKeyProfileTemplate.updatedAt":
+		if e.complexity.APIKeyProfileTemplate.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplate.UpdatedAt(childComplexity), true
+
+	case "APIKeyProfileTemplateConnection.edges":
+		if e.complexity.APIKeyProfileTemplateConnection.Edges == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplateConnection.Edges(childComplexity), true
+	case "APIKeyProfileTemplateConnection.pageInfo":
+		if e.complexity.APIKeyProfileTemplateConnection.PageInfo == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplateConnection.PageInfo(childComplexity), true
+	case "APIKeyProfileTemplateConnection.totalCount":
+		if e.complexity.APIKeyProfileTemplateConnection.TotalCount == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplateConnection.TotalCount(childComplexity), true
+
+	case "APIKeyProfileTemplateEdge.cursor":
+		if e.complexity.APIKeyProfileTemplateEdge.Cursor == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplateEdge.Cursor(childComplexity), true
+	case "APIKeyProfileTemplateEdge.node":
+		if e.complexity.APIKeyProfileTemplateEdge.Node == nil {
+			break
+		}
+
+		return e.complexity.APIKeyProfileTemplateEdge.Node(childComplexity), true
 
 	case "APIKeyProfiles.activeProfile":
 		if e.complexity.APIKeyProfiles.ActiveProfile == nil {
@@ -3666,6 +3797,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ChannelSettings.HideOriginalModels(childComplexity), true
+	case "ChannelSettings.lowercaseModelId":
+		if e.complexity.ChannelSettings.LowercaseModelID == nil {
+			break
+		}
+
+		return e.complexity.ChannelSettings.LowercaseModelID(childComplexity), true
 	case "ChannelSettings.modelMappings":
 		if e.complexity.ChannelSettings.ModelMappings == nil {
 			break
@@ -5237,6 +5374,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateAPIKey(childComplexity, args["input"].(ent.CreateAPIKeyInput)), true
+	case "Mutation.createApiKeyProfileTemplate":
+		if e.complexity.Mutation.CreateAPIKeyProfileTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createApiKeyProfileTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateAPIKeyProfileTemplate(childComplexity, args["input"].(ent.CreateAPIKeyProfileTemplateInput), args["profile"].(objects.APIKeyProfile)), true
 	case "Mutation.createChannel":
 		if e.complexity.Mutation.CreateChannel == nil {
 			break
@@ -5336,6 +5484,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CreateUser(childComplexity, args["input"].(ent.CreateUserInput)), true
+	case "Mutation.deleteApiKeyProfileTemplate":
+		if e.complexity.Mutation.DeleteAPIKeyProfileTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteApiKeyProfileTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteAPIKeyProfileTemplate(childComplexity, args["id"].(objects.GUID)), true
 	case "Mutation.deleteChannel":
 		if e.complexity.Mutation.DeleteChannel == nil {
 			break
@@ -5490,6 +5649,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.EnableSelectedChannelAPIKeys(childComplexity, args["channelID"].(objects.GUID), args["keys"].([]string)), true
+	case "Mutation.loadApiKeyProfileTemplate":
+		if e.complexity.Mutation.LoadAPIKeyProfileTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_loadApiKeyProfileTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.LoadAPIKeyProfileTemplate(childComplexity, args["input"].(LoadAPIKeyProfileTemplateInput)), true
 	case "Mutation.previewPromptProtectionRule":
 		if e.complexity.Mutation.PreviewPromptProtectionRule == nil {
 			break
@@ -5623,6 +5793,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UpdateAPIKey(childComplexity, args["id"].(objects.GUID), args["input"].(ent.UpdateAPIKeyInput)), true
+	case "Mutation.updateApiKeyProfileTemplate":
+		if e.complexity.Mutation.UpdateAPIKeyProfileTemplate == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateApiKeyProfileTemplate_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateAPIKeyProfileTemplate(childComplexity, args["id"].(objects.GUID), args["input"].(ent.UpdateAPIKeyProfileTemplateInput), args["profile"].(*objects.APIKeyProfile)), true
 	case "Mutation.updateAPIKeyProfiles":
 		if e.complexity.Mutation.UpdateAPIKeyProfiles == nil {
 			break
@@ -5766,6 +5947,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UpdateMyPassword(childComplexity, args["input"].(UpdateMyPasswordInput)), true
+	case "Mutation.updatePassThroughSettings":
+		if e.complexity.Mutation.UpdatePassThroughSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updatePassThroughSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdatePassThroughSettings(childComplexity, args["input"].(UpdatePassThroughSettingsInput)), true
 	case "Mutation.updateProject":
 		if e.complexity.Mutation.UpdateProject == nil {
 			break
@@ -6247,6 +6439,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.PageInfo.StartCursor(childComplexity), true
 
+	case "PassThroughSettings.enabled":
+		if e.complexity.PassThroughSettings.Enabled == nil {
+			break
+		}
+
+		return e.complexity.PassThroughSettings.Enabled(childComplexity), true
+
 	case "PriceTier.pricePerUnit":
 		if e.complexity.PriceTier.PricePerUnit == nil {
 			break
@@ -6285,6 +6484,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Pricing.UsageTiered(childComplexity), true
 
+	case "Project.apiKeyProfileTemplates":
+		if e.complexity.Project.APIKeyProfileTemplates == nil {
+			break
+		}
+
+		args, err := ec.field_Project_apiKeyProfileTemplates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Project.APIKeyProfileTemplates(childComplexity, args["after"].(*entgql.Cursor[int]), args["first"].(*int), args["before"].(*entgql.Cursor[int]), args["last"].(*int), args["orderBy"].(*ent.APIKeyProfileTemplateOrder), args["where"].(*ent.APIKeyProfileTemplateWhereInput)), true
 	case "Project.apiKeys":
 		if e.complexity.Project.APIKeys == nil {
 			break
@@ -6897,6 +7107,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ProxyPreset.Username(childComplexity), true
 
+	case "Query.apiKeyProfileTemplates":
+		if e.complexity.Query.APIKeyProfileTemplates == nil {
+			break
+		}
+
+		args, err := ec.field_Query_apiKeyProfileTemplates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.APIKeyProfileTemplates(childComplexity, args["after"].(*entgql.Cursor[int]), args["first"].(*int), args["before"].(*entgql.Cursor[int]), args["last"].(*int), args["orderBy"].(*ent.APIKeyProfileTemplateOrder), args["where"].(*ent.APIKeyProfileTemplateWhereInput)), true
 	case "Query.apiKeyQuotaUsages":
 		if e.complexity.Query.APIKeyQuotaUsages == nil {
 			break
@@ -7211,6 +7432,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.OnboardingInfo(childComplexity), true
+	case "Query.passThroughSettings":
+		if e.complexity.Query.PassThroughSettings == nil {
+			break
+		}
+
+		return e.complexity.Query.PassThroughSettings(childComplexity), true
 	case "Query.projects":
 		if e.complexity.Query.Projects == nil {
 			break
@@ -10106,6 +10333,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputAPIKeyOrder,
 		ec.unmarshalInputAPIKeyProfileInput,
+		ec.unmarshalInputAPIKeyProfileTemplateOrder,
+		ec.unmarshalInputAPIKeyProfileTemplateWhereInput,
 		ec.unmarshalInputAPIKeyQuotaCalendarDurationInput,
 		ec.unmarshalInputAPIKeyQuotaInput,
 		ec.unmarshalInputAPIKeyQuotaPastDurationInput,
@@ -10149,6 +10378,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCostItemInput,
 		ec.unmarshalInputCountChannelsByTypeInput,
 		ec.unmarshalInputCreateAPIKeyInput,
+		ec.unmarshalInputCreateAPIKeyProfileTemplateInput,
 		ec.unmarshalInputCreateChannelInput,
 		ec.unmarshalInputCreateChannelOverrideTemplateInput,
 		ec.unmarshalInputCreateDataStorageInput,
@@ -10177,6 +10407,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputGetChannelProbeDataInput,
 		ec.unmarshalInputHeaderEntryInput,
 		ec.unmarshalInputInitializeSystemInput,
+		ec.unmarshalInputLoadApiKeyProfileTemplateInput,
 		ec.unmarshalInputModelAssociationInput,
 		ec.unmarshalInputModelAssociationWhenInput,
 		ec.unmarshalInputModelCardCostInput,
@@ -10241,6 +10472,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputTraceWhereInput,
 		ec.unmarshalInputTransformOptionsInput,
 		ec.unmarshalInputUpdateAPIKeyInput,
+		ec.unmarshalInputUpdateAPIKeyProfileTemplateInput,
 		ec.unmarshalInputUpdateAPIKeyProfilesInput,
 		ec.unmarshalInputUpdateAPIKeyScopesInput,
 		ec.unmarshalInputUpdateAutoBackupSettingsInput,
@@ -10255,6 +10487,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateModelInput,
 		ec.unmarshalInputUpdateMyPasswordInput,
 		ec.unmarshalInputUpdateOIDCIdentityInput,
+		ec.unmarshalInputUpdatePassThroughSettingsInput,
 		ec.unmarshalInputUpdateProjectInput,
 		ec.unmarshalInputUpdateProjectProfilesInput,
 		ec.unmarshalInputUpdateProjectUserInput,
@@ -10984,6 +11217,22 @@ func (ec *executionContext) field_Mutation_createAPIKey_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createApiKeyProfileTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNCreateAPIKeyProfileTemplateInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐCreateAPIKeyProfileTemplateInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "profile", ec.unmarshalNAPIKeyProfileInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyProfile)
+	if err != nil {
+		return nil, err
+	}
+	args["profile"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createChannelOverrideTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11080,6 +11329,17 @@ func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteApiKeyProfileTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -11254,6 +11514,17 @@ func (ec *executionContext) field_Mutation_enableSelectedChannelAPIKeys_args(ctx
 		return nil, err
 	}
 	args["keys"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_loadApiKeyProfileTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNLoadApiKeyProfileTemplateInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐLoadAPIKeyProfileTemplateInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -11435,6 +11706,27 @@ func (ec *executionContext) field_Mutation_updateAPIKey_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateApiKeyProfileTemplate_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateAPIKeyProfileTemplateInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐUpdateAPIKeyProfileTemplateInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "profile", ec.unmarshalOAPIKeyProfileInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyProfile)
+	if err != nil {
+		return nil, err
+	}
+	args["profile"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateAutoBackupSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11579,6 +11871,17 @@ func (ec *executionContext) field_Mutation_updateMyPassword_args(ctx context.Con
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateMyPasswordInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐUpdateMyPasswordInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updatePassThroughSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdatePassThroughSettingsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐUpdatePassThroughSettingsInput)
 	if err != nil {
 		return nil, err
 	}
@@ -11853,6 +12156,42 @@ func (ec *executionContext) field_Mutation_updateWebhookNotifierConfig_args(ctx 
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Project_apiKeyProfileTemplates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "after", ec.unmarshalOCursor2ᚖentgoᚗioᚋcontribᚋentgqlᚐCursor)
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "first", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "before", ec.unmarshalOCursor2ᚖentgoᚗioᚋcontribᚋentgqlᚐCursor)
+	if err != nil {
+		return nil, err
+	}
+	args["before"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "last", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["last"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "orderBy", ec.unmarshalOAPIKeyProfileTemplateOrder2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateOrder)
+	if err != nil {
+		return nil, err
+	}
+	args["orderBy"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "where", ec.unmarshalOAPIKeyProfileTemplateWhereInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInput)
+	if err != nil {
+		return nil, err
+	}
+	args["where"] = arg5
 	return args, nil
 }
 
@@ -12210,6 +12549,42 @@ func (ec *executionContext) field_Query_allScopes_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["level"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_apiKeyProfileTemplates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "after", ec.unmarshalOCursor2ᚖentgoᚗioᚋcontribᚋentgqlᚐCursor)
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "first", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "before", ec.unmarshalOCursor2ᚖentgoᚗioᚋcontribᚋentgqlᚐCursor)
+	if err != nil {
+		return nil, err
+	}
+	args["before"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "last", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["last"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "orderBy", ec.unmarshalOAPIKeyProfileTemplateOrder2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateOrder)
+	if err != nil {
+		return nil, err
+	}
+	args["orderBy"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "where", ec.unmarshalOAPIKeyProfileTemplateWhereInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInput)
+	if err != nil {
+		return nil, err
+	}
+	args["where"] = arg5
 	return args, nil
 }
 
@@ -13905,6 +14280,8 @@ func (ec *executionContext) fieldContext_APIKey_project(_ context.Context, field
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -14537,6 +14914,471 @@ func (ec *executionContext) fieldContext_APIKeyProfileQuotaUsage_usage(_ context
 				return ec.fieldContext_APIKeyQuotaUsage_totalCost(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type APIKeyQuotaUsage", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplate_id(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplate_id,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.APIKeyProfileTemplate().ID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplate_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplate",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplate_createdAt(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplate_createdAt,
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplate_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplate_updatedAt(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplate_updatedAt,
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplate_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplate_name(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplate_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplate_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplate_description(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplate_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplate_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplate_projectID(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplate_projectID,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.APIKeyProfileTemplate().ProjectID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplate_projectID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplate",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplate_profile(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplate_profile,
+		func(ctx context.Context) (any, error) {
+			return obj.Profile, nil
+		},
+		nil,
+		ec.marshalOAPIKeyProfile2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyProfile,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplate_profile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_APIKeyProfile_name(ctx, field)
+			case "modelMappings":
+				return ec.fieldContext_APIKeyProfile_modelMappings(ctx, field)
+			case "channelIDs":
+				return ec.fieldContext_APIKeyProfile_channelIDs(ctx, field)
+			case "channelTags":
+				return ec.fieldContext_APIKeyProfile_channelTags(ctx, field)
+			case "channelTagsMatchMode":
+				return ec.fieldContext_APIKeyProfile_channelTagsMatchMode(ctx, field)
+			case "modelIDs":
+				return ec.fieldContext_APIKeyProfile_modelIDs(ctx, field)
+			case "quota":
+				return ec.fieldContext_APIKeyProfile_quota(ctx, field)
+			case "loadBalanceStrategy":
+				return ec.fieldContext_APIKeyProfile_loadBalanceStrategy(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKeyProfile", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplate_project(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplate_project,
+		func(ctx context.Context) (any, error) {
+			return obj.Project(ctx)
+		},
+		nil,
+		ec.marshalNProject2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐProject,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplate_project(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplate",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Project_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Project_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Project_updatedAt(ctx, field)
+			case "name":
+				return ec.fieldContext_Project_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Project_description(ctx, field)
+			case "status":
+				return ec.fieldContext_Project_status(ctx, field)
+			case "profiles":
+				return ec.fieldContext_Project_profiles(ctx, field)
+			case "users":
+				return ec.fieldContext_Project_users(ctx, field)
+			case "roles":
+				return ec.fieldContext_Project_roles(ctx, field)
+			case "apiKeys":
+				return ec.fieldContext_Project_apiKeys(ctx, field)
+			case "requests":
+				return ec.fieldContext_Project_requests(ctx, field)
+			case "usageLogs":
+				return ec.fieldContext_Project_usageLogs(ctx, field)
+			case "threads":
+				return ec.fieldContext_Project_threads(ctx, field)
+			case "traces":
+				return ec.fieldContext_Project_traces(ctx, field)
+			case "prompts":
+				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
+			case "projectUsers":
+				return ec.fieldContext_Project_projectUsers(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplateConnection_edges(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplateConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplateConnection_edges,
+		func(ctx context.Context) (any, error) {
+			return obj.Edges, nil
+		},
+		nil,
+		ec.marshalOAPIKeyProfileTemplateEdge2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateEdge,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplateConnection_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplateConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "node":
+				return ec.fieldContext_APIKeyProfileTemplateEdge_node(ctx, field)
+			case "cursor":
+				return ec.fieldContext_APIKeyProfileTemplateEdge_cursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKeyProfileTemplateEdge", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplateConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplateConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplateConnection_pageInfo,
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		ec.marshalNPageInfo2entgoᚗioᚋcontribᚋentgqlᚐPageInfo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplateConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplateConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hasNextPage":
+				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			case "hasPreviousPage":
+				return ec.fieldContext_PageInfo_hasPreviousPage(ctx, field)
+			case "startCursor":
+				return ec.fieldContext_PageInfo_startCursor(ctx, field)
+			case "endCursor":
+				return ec.fieldContext_PageInfo_endCursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplateConnection_totalCount(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplateConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplateConnection_totalCount,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplateConnection_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplateConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplateEdge_node(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplateEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplateEdge_node,
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		ec.marshalOAPIKeyProfileTemplate2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplate,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplateEdge_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplateEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_APIKeyProfileTemplate_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_APIKeyProfileTemplate_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_APIKeyProfileTemplate_updatedAt(ctx, field)
+			case "name":
+				return ec.fieldContext_APIKeyProfileTemplate_name(ctx, field)
+			case "description":
+				return ec.fieldContext_APIKeyProfileTemplate_description(ctx, field)
+			case "projectID":
+				return ec.fieldContext_APIKeyProfileTemplate_projectID(ctx, field)
+			case "profile":
+				return ec.fieldContext_APIKeyProfileTemplate_profile(ctx, field)
+			case "project":
+				return ec.fieldContext_APIKeyProfileTemplate_project(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKeyProfileTemplate", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _APIKeyProfileTemplateEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *ent.APIKeyProfileTemplateEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_APIKeyProfileTemplateEdge_cursor,
+		func(ctx context.Context) (any, error) {
+			return obj.Cursor, nil
+		},
+		nil,
+		ec.marshalNCursor2entgoᚗioᚋcontribᚋentgqlᚐCursor,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_APIKeyProfileTemplateEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "APIKeyProfileTemplateEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Cursor does not have child fields")
 		},
 	}
 	return fc, nil
@@ -16943,6 +17785,8 @@ func (ec *executionContext) fieldContext_Channel_settings(_ context.Context, fie
 				return ec.fieldContext_ChannelSettings_hideOriginalModels(ctx, field)
 			case "hideMappedModels":
 				return ec.fieldContext_ChannelSettings_hideMappedModels(ctx, field)
+			case "lowercaseModelId":
+				return ec.fieldContext_ChannelSettings_lowercaseModelId(ctx, field)
 			case "proxy":
 				return ec.fieldContext_ChannelSettings_proxy(ctx, field)
 			case "transformOptions":
@@ -21081,6 +21925,35 @@ func (ec *executionContext) fieldContext_ChannelSettings_hideMappedModels(_ cont
 	return fc, nil
 }
 
+func (ec *executionContext) _ChannelSettings_lowercaseModelId(ctx context.Context, field graphql.CollectedField, obj *objects.ChannelSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ChannelSettings_lowercaseModelId,
+		func(ctx context.Context) (any, error) {
+			return obj.LowercaseModelID, nil
+		},
+		nil,
+		ec.marshalOBoolean2bool,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ChannelSettings_lowercaseModelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChannelSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ChannelSettings_proxy(ctx context.Context, field graphql.CollectedField, obj *objects.ChannelSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -21296,7 +22169,7 @@ func (ec *executionContext) _ChannelSettings_passThroughBody(ctx context.Context
 			return obj.PassThroughBody, nil
 		},
 		nil,
-		ec.marshalOBoolean2bool,
+		ec.marshalOBoolean2ᚖbool,
 		true,
 		false,
 	)
@@ -29410,6 +30283,8 @@ func (ec *executionContext) fieldContext_Mutation_createProject(ctx context.Cont
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -29485,6 +30360,8 @@ func (ec *executionContext) fieldContext_Mutation_updateProject(ctx context.Cont
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -29560,6 +30437,8 @@ func (ec *executionContext) fieldContext_Mutation_updateProjectStatus(ctx contex
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -29635,6 +30514,8 @@ func (ec *executionContext) fieldContext_Mutation_updateProjectProfiles(ctx cont
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -30299,6 +31180,254 @@ func (ec *executionContext) fieldContext_Mutation_syncChannelModels(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_syncChannelModels_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createApiKeyProfileTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_createApiKeyProfileTemplate,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().CreateAPIKeyProfileTemplate(ctx, fc.Args["input"].(ent.CreateAPIKeyProfileTemplateInput), fc.Args["profile"].(objects.APIKeyProfile))
+		},
+		nil,
+		ec.marshalNAPIKeyProfileTemplate2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplate,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createApiKeyProfileTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_APIKeyProfileTemplate_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_APIKeyProfileTemplate_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_APIKeyProfileTemplate_updatedAt(ctx, field)
+			case "name":
+				return ec.fieldContext_APIKeyProfileTemplate_name(ctx, field)
+			case "description":
+				return ec.fieldContext_APIKeyProfileTemplate_description(ctx, field)
+			case "projectID":
+				return ec.fieldContext_APIKeyProfileTemplate_projectID(ctx, field)
+			case "profile":
+				return ec.fieldContext_APIKeyProfileTemplate_profile(ctx, field)
+			case "project":
+				return ec.fieldContext_APIKeyProfileTemplate_project(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKeyProfileTemplate", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createApiKeyProfileTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateApiKeyProfileTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateApiKeyProfileTemplate,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateAPIKeyProfileTemplate(ctx, fc.Args["id"].(objects.GUID), fc.Args["input"].(ent.UpdateAPIKeyProfileTemplateInput), fc.Args["profile"].(*objects.APIKeyProfile))
+		},
+		nil,
+		ec.marshalNAPIKeyProfileTemplate2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplate,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateApiKeyProfileTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_APIKeyProfileTemplate_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_APIKeyProfileTemplate_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_APIKeyProfileTemplate_updatedAt(ctx, field)
+			case "name":
+				return ec.fieldContext_APIKeyProfileTemplate_name(ctx, field)
+			case "description":
+				return ec.fieldContext_APIKeyProfileTemplate_description(ctx, field)
+			case "projectID":
+				return ec.fieldContext_APIKeyProfileTemplate_projectID(ctx, field)
+			case "profile":
+				return ec.fieldContext_APIKeyProfileTemplate_profile(ctx, field)
+			case "project":
+				return ec.fieldContext_APIKeyProfileTemplate_project(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKeyProfileTemplate", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateApiKeyProfileTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteApiKeyProfileTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteApiKeyProfileTemplate,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().DeleteAPIKeyProfileTemplate(ctx, fc.Args["id"].(objects.GUID))
+		},
+		nil,
+		ec.marshalNAPIKeyProfileTemplate2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplate,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteApiKeyProfileTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_APIKeyProfileTemplate_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_APIKeyProfileTemplate_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_APIKeyProfileTemplate_updatedAt(ctx, field)
+			case "name":
+				return ec.fieldContext_APIKeyProfileTemplate_name(ctx, field)
+			case "description":
+				return ec.fieldContext_APIKeyProfileTemplate_description(ctx, field)
+			case "projectID":
+				return ec.fieldContext_APIKeyProfileTemplate_projectID(ctx, field)
+			case "profile":
+				return ec.fieldContext_APIKeyProfileTemplate_profile(ctx, field)
+			case "project":
+				return ec.fieldContext_APIKeyProfileTemplate_project(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKeyProfileTemplate", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteApiKeyProfileTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_loadApiKeyProfileTemplate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_loadApiKeyProfileTemplate,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().LoadAPIKeyProfileTemplate(ctx, fc.Args["input"].(LoadAPIKeyProfileTemplateInput))
+		},
+		nil,
+		ec.marshalNAPIKey2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKey,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_loadApiKeyProfileTemplate(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_APIKey_id(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_APIKey_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_APIKey_updatedAt(ctx, field)
+			case "userID":
+				return ec.fieldContext_APIKey_userID(ctx, field)
+			case "projectID":
+				return ec.fieldContext_APIKey_projectID(ctx, field)
+			case "key":
+				return ec.fieldContext_APIKey_key(ctx, field)
+			case "name":
+				return ec.fieldContext_APIKey_name(ctx, field)
+			case "type":
+				return ec.fieldContext_APIKey_type(ctx, field)
+			case "status":
+				return ec.fieldContext_APIKey_status(ctx, field)
+			case "scopes":
+				return ec.fieldContext_APIKey_scopes(ctx, field)
+			case "profiles":
+				return ec.fieldContext_APIKey_profiles(ctx, field)
+			case "user":
+				return ec.fieldContext_APIKey_user(ctx, field)
+			case "project":
+				return ec.fieldContext_APIKey_project(ctx, field)
+			case "requests":
+				return ec.fieldContext_APIKey_requests(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKey", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_loadApiKeyProfileTemplate_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -31174,6 +32303,47 @@ func (ec *executionContext) fieldContext_Mutation_updateUserAgentPassThroughSett
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateUserAgentPassThroughSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updatePassThroughSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updatePassThroughSettings,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdatePassThroughSettings(ctx, fc.Args["input"].(UpdatePassThroughSettingsInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updatePassThroughSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updatePassThroughSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -33936,6 +35106,35 @@ func (ec *executionContext) fieldContext_PageInfo_endCursor(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _PassThroughSettings_enabled(ctx context.Context, field graphql.CollectedField, obj *PassThroughSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PassThroughSettings_enabled,
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PassThroughSettings_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PassThroughSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PriceTier_upTo(ctx context.Context, field graphql.CollectedField, obj *objects.PriceTier) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34715,6 +35914,55 @@ func (ec *executionContext) fieldContext_Project_prompts(ctx context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Project_apiKeyProfileTemplates(ctx context.Context, field graphql.CollectedField, obj *ent.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Project_apiKeyProfileTemplates,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return obj.APIKeyProfileTemplates(ctx, fc.Args["after"].(*entgql.Cursor[int]), fc.Args["first"].(*int), fc.Args["before"].(*entgql.Cursor[int]), fc.Args["last"].(*int), fc.Args["orderBy"].(*ent.APIKeyProfileTemplateOrder), fc.Args["where"].(*ent.APIKeyProfileTemplateWhereInput))
+		},
+		nil,
+		ec.marshalNAPIKeyProfileTemplateConnection2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Project_apiKeyProfileTemplates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Project",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "edges":
+				return ec.fieldContext_APIKeyProfileTemplateConnection_edges(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_APIKeyProfileTemplateConnection_pageInfo(ctx, field)
+			case "totalCount":
+				return ec.fieldContext_APIKeyProfileTemplateConnection_totalCount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKeyProfileTemplateConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Project_apiKeyProfileTemplates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Project_projectUsers(ctx context.Context, field graphql.CollectedField, obj *ent.Project) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34921,6 +36169,8 @@ func (ec *executionContext) fieldContext_ProjectEdge_node(_ context.Context, fie
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -37330,6 +38580,55 @@ func (ec *executionContext) fieldContext_Query_apiKeys(ctx context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_apiKeyProfileTemplates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_apiKeyProfileTemplates,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().APIKeyProfileTemplates(ctx, fc.Args["after"].(*entgql.Cursor[int]), fc.Args["first"].(*int), fc.Args["before"].(*entgql.Cursor[int]), fc.Args["last"].(*int), fc.Args["orderBy"].(*ent.APIKeyProfileTemplateOrder), fc.Args["where"].(*ent.APIKeyProfileTemplateWhereInput))
+		},
+		nil,
+		ec.marshalNAPIKeyProfileTemplateConnection2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_apiKeyProfileTemplates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "edges":
+				return ec.fieldContext_APIKeyProfileTemplateConnection_edges(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_APIKeyProfileTemplateConnection_pageInfo(ctx, field)
+			case "totalCount":
+				return ec.fieldContext_APIKeyProfileTemplateConnection_totalCount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type APIKeyProfileTemplateConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_apiKeyProfileTemplates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_channels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -39484,6 +40783,8 @@ func (ec *executionContext) fieldContext_Query_myProjects(_ context.Context, fie
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -40082,6 +41383,39 @@ func (ec *executionContext) fieldContext_Query_userAgentPassThroughSettings(_ co
 				return ec.fieldContext_UserAgentPassThroughSettings_enabled(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserAgentPassThroughSettings", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_passThroughSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_passThroughSettings,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().PassThroughSettings(ctx)
+		},
+		nil,
+		ec.marshalNPassThroughSettings2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐPassThroughSettings,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_passThroughSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "enabled":
+				return ec.fieldContext_PassThroughSettings_enabled(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PassThroughSettings", field.Name)
 		},
 	}
 	return fc, nil
@@ -40963,35 +42297,6 @@ func (ec *executionContext) fieldContext_Request_format(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _Request_requestHeaders(ctx context.Context, field graphql.CollectedField, obj *ent.Request) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Request_requestHeaders,
-		func(ctx context.Context) (any, error) {
-			return obj.RequestHeaders, nil
-		},
-		nil,
-		ec.marshalOJSONRawMessage2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐJSONRawMessage,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_Request_requestHeaders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Request",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type JSONRawMessage does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Request_channelID(ctx context.Context, field graphql.CollectedField, obj *ent.Request) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41453,6 +42758,8 @@ func (ec *executionContext) fieldContext_Request_project(_ context.Context, fiel
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -41763,6 +43070,35 @@ func (ec *executionContext) fieldContext_Request_usageLogs(ctx context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Request_requestHeaders(ctx context.Context, field graphql.CollectedField, obj *ent.Request) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Request_requestHeaders,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Request().RequestHeaders(ctx, obj)
+		},
+		nil,
+		ec.marshalOJSONRawMessage2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐJSONRawMessage,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Request_requestHeaders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Request",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSONRawMessage does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Request_requestBody(ctx context.Context, field graphql.CollectedField, obj *ent.Request) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41999,8 +43335,6 @@ func (ec *executionContext) fieldContext_RequestEdge_node(_ context.Context, fie
 				return ec.fieldContext_Request_reasoningEffort(ctx, field)
 			case "format":
 				return ec.fieldContext_Request_format(ctx, field)
-			case "requestHeaders":
-				return ec.fieldContext_Request_requestHeaders(ctx, field)
 			case "channelID":
 				return ec.fieldContext_Request_channelID(ctx, field)
 			case "externalID":
@@ -42039,6 +43373,8 @@ func (ec *executionContext) fieldContext_RequestEdge_node(_ context.Context, fie
 				return ec.fieldContext_Request_channel(ctx, field)
 			case "usageLogs":
 				return ec.fieldContext_Request_usageLogs(ctx, field)
+			case "requestHeaders":
+				return ec.fieldContext_Request_requestHeaders(ctx, field)
 			case "requestBody":
 				return ec.fieldContext_Request_requestBody(ctx, field)
 			case "responseBody":
@@ -42574,35 +43910,6 @@ func (ec *executionContext) fieldContext_RequestExecution_metricsReasoningDurati
 	return fc, nil
 }
 
-func (ec *executionContext) _RequestExecution_requestHeaders(ctx context.Context, field graphql.CollectedField, obj *ent.RequestExecution) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_RequestExecution_requestHeaders,
-		func(ctx context.Context) (any, error) {
-			return obj.RequestHeaders, nil
-		},
-		nil,
-		ec.marshalOJSONRawMessage2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐJSONRawMessage,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_RequestExecution_requestHeaders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "RequestExecution",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type JSONRawMessage does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _RequestExecution_request(ctx context.Context, field graphql.CollectedField, obj *ent.RequestExecution) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -42649,8 +43956,6 @@ func (ec *executionContext) fieldContext_RequestExecution_request(_ context.Cont
 				return ec.fieldContext_Request_reasoningEffort(ctx, field)
 			case "format":
 				return ec.fieldContext_Request_format(ctx, field)
-			case "requestHeaders":
-				return ec.fieldContext_Request_requestHeaders(ctx, field)
 			case "channelID":
 				return ec.fieldContext_Request_channelID(ctx, field)
 			case "externalID":
@@ -42689,6 +43994,8 @@ func (ec *executionContext) fieldContext_RequestExecution_request(_ context.Cont
 				return ec.fieldContext_Request_channel(ctx, field)
 			case "usageLogs":
 				return ec.fieldContext_Request_usageLogs(ctx, field)
+			case "requestHeaders":
+				return ec.fieldContext_Request_requestHeaders(ctx, field)
 			case "requestBody":
 				return ec.fieldContext_Request_requestBody(ctx, field)
 			case "responseBody":
@@ -42841,6 +44148,35 @@ func (ec *executionContext) fieldContext_RequestExecution_dataStorage(_ context.
 				return ec.fieldContext_DataStorage_executions(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DataStorage", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RequestExecution_requestHeaders(ctx context.Context, field graphql.CollectedField, obj *ent.RequestExecution) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RequestExecution_requestHeaders,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.RequestExecution().RequestHeaders(ctx, obj)
+		},
+		nil,
+		ec.marshalOJSONRawMessage2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐJSONRawMessage,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_RequestExecution_requestHeaders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RequestExecution",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSONRawMessage does not have child fields")
 		},
 	}
 	return fc, nil
@@ -43094,14 +44430,14 @@ func (ec *executionContext) fieldContext_RequestExecutionEdge_node(_ context.Con
 				return ec.fieldContext_RequestExecution_metricsFirstTokenLatencyMs(ctx, field)
 			case "metricsReasoningDurationMs":
 				return ec.fieldContext_RequestExecution_metricsReasoningDurationMs(ctx, field)
-			case "requestHeaders":
-				return ec.fieldContext_RequestExecution_requestHeaders(ctx, field)
 			case "request":
 				return ec.fieldContext_RequestExecution_request(ctx, field)
 			case "channel":
 				return ec.fieldContext_RequestExecution_channel(ctx, field)
 			case "dataStorage":
 				return ec.fieldContext_RequestExecution_dataStorage(ctx, field)
+			case "requestHeaders":
+				return ec.fieldContext_RequestExecution_requestHeaders(ctx, field)
 			case "requestBody":
 				return ec.fieldContext_RequestExecution_requestBody(ctx, field)
 			case "responseBody":
@@ -44181,6 +45517,8 @@ func (ec *executionContext) fieldContext_Role_project(_ context.Context, field g
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -47526,6 +48864,8 @@ func (ec *executionContext) fieldContext_Thread_project(_ context.Context, field
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -49260,6 +50600,8 @@ func (ec *executionContext) fieldContext_Trace_project(_ context.Context, field 
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -50872,8 +52214,6 @@ func (ec *executionContext) fieldContext_UsageLog_request(_ context.Context, fie
 				return ec.fieldContext_Request_reasoningEffort(ctx, field)
 			case "format":
 				return ec.fieldContext_Request_format(ctx, field)
-			case "requestHeaders":
-				return ec.fieldContext_Request_requestHeaders(ctx, field)
 			case "channelID":
 				return ec.fieldContext_Request_channelID(ctx, field)
 			case "externalID":
@@ -50912,6 +52252,8 @@ func (ec *executionContext) fieldContext_UsageLog_request(_ context.Context, fie
 				return ec.fieldContext_Request_channel(ctx, field)
 			case "usageLogs":
 				return ec.fieldContext_Request_usageLogs(ctx, field)
+			case "requestHeaders":
+				return ec.fieldContext_Request_requestHeaders(ctx, field)
 			case "requestBody":
 				return ec.fieldContext_Request_requestBody(ctx, field)
 			case "responseBody":
@@ -50979,6 +52321,8 @@ func (ec *executionContext) fieldContext_UsageLog_project(_ context.Context, fie
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -53056,6 +54400,8 @@ func (ec *executionContext) fieldContext_UserProject_project(_ context.Context, 
 				return ec.fieldContext_Project_traces(ctx, field)
 			case "prompts":
 				return ec.fieldContext_Project_prompts(ctx, field)
+			case "apiKeyProfileTemplates":
+				return ec.fieldContext_Project_apiKeyProfileTemplates(ctx, field)
 			case "projectUsers":
 				return ec.fieldContext_Project_projectUsers(ctx, field)
 			}
@@ -55736,6 +57082,525 @@ func (ec *executionContext) unmarshalInputAPIKeyProfileInput(ctx context.Context
 				return it, err
 			}
 			it.LoadBalanceStrategy = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputAPIKeyProfileTemplateOrder(ctx context.Context, obj any) (ent.APIKeyProfileTemplateOrder, error) {
+	var it ent.APIKeyProfileTemplateOrder
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["direction"]; !present {
+		asMap["direction"] = "ASC"
+	}
+
+	fieldsInOrder := [...]string{"direction", "field"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "direction":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
+			data, err := ec.unmarshalNOrderDirection2entgoᚗioᚋcontribᚋentgqlᚐOrderDirection(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Direction = data
+		case "field":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("field"))
+			data, err := ec.unmarshalNAPIKeyProfileTemplateOrderField2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateOrderField(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Field = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputAPIKeyProfileTemplateWhereInput(ctx context.Context, obj any) (ent.APIKeyProfileTemplateWhereInput, error) {
+	var it ent.APIKeyProfileTemplateWhereInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"not", "and", "or", "id", "idNEQ", "idIn", "idNotIn", "idGT", "idGTE", "idLT", "idLTE", "createdAt", "createdAtNEQ", "createdAtIn", "createdAtNotIn", "createdAtGT", "createdAtGTE", "createdAtLT", "createdAtLTE", "updatedAt", "updatedAtNEQ", "updatedAtIn", "updatedAtNotIn", "updatedAtGT", "updatedAtGTE", "updatedAtLT", "updatedAtLTE", "name", "nameNEQ", "nameIn", "nameNotIn", "nameGT", "nameGTE", "nameLT", "nameLTE", "nameContains", "nameHasPrefix", "nameHasSuffix", "nameEqualFold", "nameContainsFold", "description", "descriptionNEQ", "descriptionIn", "descriptionNotIn", "descriptionGT", "descriptionGTE", "descriptionLT", "descriptionLTE", "descriptionContains", "descriptionHasPrefix", "descriptionHasSuffix", "descriptionEqualFold", "descriptionContainsFold", "projectID", "projectIDNEQ", "projectIDIn", "projectIDNotIn", "hasProject", "hasProjectWith"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "not":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("not"))
+			data, err := ec.unmarshalOAPIKeyProfileTemplateWhereInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Not = data
+		case "and":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("and"))
+			data, err := ec.unmarshalOAPIKeyProfileTemplateWhereInput2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.And = data
+		case "or":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("or"))
+			data, err := ec.unmarshalOAPIKeyProfileTemplateWhereInput2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Or = data
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalOID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToIntPtr(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.ID = converted
+		case "idNEQ":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idNEQ"))
+			data, err := ec.unmarshalOID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToIntPtr(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.IDNEQ = converted
+		case "idIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idIn"))
+			data, err := ec.unmarshalOID2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUIDᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrsToInts(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.IDIn = converted
+		case "idNotIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idNotIn"))
+			data, err := ec.unmarshalOID2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUIDᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrsToInts(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.IDNotIn = converted
+		case "idGT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idGT"))
+			data, err := ec.unmarshalOID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToIntPtr(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.IDGT = converted
+		case "idGTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idGTE"))
+			data, err := ec.unmarshalOID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToIntPtr(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.IDGTE = converted
+		case "idLT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idLT"))
+			data, err := ec.unmarshalOID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToIntPtr(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.IDLT = converted
+		case "idLTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("idLTE"))
+			data, err := ec.unmarshalOID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToIntPtr(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.IDLTE = converted
+		case "createdAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAt = data
+		case "createdAtNEQ":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAtNEQ"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAtNEQ = data
+		case "createdAtIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAtIn"))
+			data, err := ec.unmarshalOTime2ᚕtimeᚐTimeᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAtIn = data
+		case "createdAtNotIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAtNotIn"))
+			data, err := ec.unmarshalOTime2ᚕtimeᚐTimeᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAtNotIn = data
+		case "createdAtGT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAtGT"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAtGT = data
+		case "createdAtGTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAtGTE"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAtGTE = data
+		case "createdAtLT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAtLT"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAtLT = data
+		case "createdAtLTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("createdAtLTE"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CreatedAtLTE = data
+		case "updatedAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAt = data
+		case "updatedAtNEQ":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAtNEQ"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAtNEQ = data
+		case "updatedAtIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAtIn"))
+			data, err := ec.unmarshalOTime2ᚕtimeᚐTimeᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAtIn = data
+		case "updatedAtNotIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAtNotIn"))
+			data, err := ec.unmarshalOTime2ᚕtimeᚐTimeᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAtNotIn = data
+		case "updatedAtGT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAtGT"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAtGT = data
+		case "updatedAtGTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAtGTE"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAtGTE = data
+		case "updatedAtLT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAtLT"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAtLT = data
+		case "updatedAtLTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("updatedAtLTE"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpdatedAtLTE = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "nameNEQ":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameNEQ"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameNEQ = data
+		case "nameIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameIn"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameIn = data
+		case "nameNotIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameNotIn"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameNotIn = data
+		case "nameGT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameGT"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameGT = data
+		case "nameGTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameGTE"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameGTE = data
+		case "nameLT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameLT"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameLT = data
+		case "nameLTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameLTE"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameLTE = data
+		case "nameContains":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameContains"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameContains = data
+		case "nameHasPrefix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameHasPrefix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameHasPrefix = data
+		case "nameHasSuffix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameHasSuffix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameHasSuffix = data
+		case "nameEqualFold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameEqualFold"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameEqualFold = data
+		case "nameContainsFold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nameContainsFold"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NameContainsFold = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "descriptionNEQ":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionNEQ"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionNEQ = data
+		case "descriptionIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionIn"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionIn = data
+		case "descriptionNotIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionNotIn"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionNotIn = data
+		case "descriptionGT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionGT"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionGT = data
+		case "descriptionGTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionGTE"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionGTE = data
+		case "descriptionLT":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionLT"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionLT = data
+		case "descriptionLTE":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionLTE"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionLTE = data
+		case "descriptionContains":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionContains"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionContains = data
+		case "descriptionHasPrefix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionHasPrefix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionHasPrefix = data
+		case "descriptionHasSuffix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionHasSuffix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionHasSuffix = data
+		case "descriptionEqualFold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionEqualFold"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionEqualFold = data
+		case "descriptionContainsFold":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("descriptionContainsFold"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DescriptionContainsFold = data
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalOID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToIntPtr(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.ProjectID = converted
+		case "projectIDNEQ":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectIDNEQ"))
+			data, err := ec.unmarshalOID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToIntPtr(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.ProjectIDNEQ = converted
+		case "projectIDIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectIDIn"))
+			data, err := ec.unmarshalOID2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUIDᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrsToInts(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.ProjectIDIn = converted
+		case "projectIDNotIn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectIDNotIn"))
+			data, err := ec.unmarshalOID2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUIDᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrsToInts(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.ProjectIDNotIn = converted
+		case "hasProject":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasProject"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HasProject = data
+		case "hasProjectWith":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasProjectWith"))
+			data, err := ec.unmarshalOProjectWhereInput2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐProjectWhereInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HasProjectWith = data
 		}
 	}
 
@@ -59702,7 +61567,7 @@ func (ec *executionContext) unmarshalInputChannelSettingsInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"extraModelPrefix", "modelMappings", "autoTrimedModelPrefixes", "hideOriginalModels", "hideMappedModels", "proxy", "transformOptions", "headerOverrideOperations", "bodyOverrideOperations", "passThroughUserAgent", "passThroughBody", "rateLimit"}
+	fieldsInOrder := [...]string{"extraModelPrefix", "modelMappings", "autoTrimedModelPrefixes", "hideOriginalModels", "hideMappedModels", "lowercaseModelId", "proxy", "transformOptions", "headerOverrideOperations", "bodyOverrideOperations", "passThroughUserAgent", "passThroughBody", "rateLimit"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -59744,6 +61609,13 @@ func (ec *executionContext) unmarshalInputChannelSettingsInput(ctx context.Conte
 				return it, err
 			}
 			it.HideMappedModels = data
+		case "lowercaseModelId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lowercaseModelId"))
+			data, err := ec.unmarshalOBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LowercaseModelID = data
 		case "proxy":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("proxy"))
 			data, err := ec.unmarshalOProxyConfigInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋllmᚋhttpclientᚐProxyConfig(ctx, v)
@@ -59781,7 +61653,7 @@ func (ec *executionContext) unmarshalInputChannelSettingsInput(ctx context.Conte
 			it.PassThroughUserAgent = data
 		case "passThroughBody":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("passThroughBody"))
-			data, err := ec.unmarshalOBoolean2bool(ctx, v)
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -61206,6 +63078,51 @@ func (ec *executionContext) unmarshalInputCreateAPIKeyInput(ctx context.Context,
 				return it, err
 			}
 			it.Scopes = data
+		case "projectID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
+			data, err := ec.unmarshalNID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			converted, err := objects.ConvertGUIDPtrToInt(data)
+			if err != nil {
+				return it, graphql.ErrorOnPath(ctx, err)
+			}
+			it.ProjectID = converted
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateAPIKeyProfileTemplateInput(ctx context.Context, obj any) (ent.CreateAPIKeyProfileTemplateInput, error) {
+	var it ent.CreateAPIKeyProfileTemplateInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description", "projectID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
 		case "projectID":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectID"))
 			data, err := ec.unmarshalNID2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
@@ -63475,6 +65392,40 @@ func (ec *executionContext) unmarshalInputInitializeSystemInput(ctx context.Cont
 				return it, err
 			}
 			it.BrandName = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputLoadApiKeyProfileTemplateInput(ctx context.Context, obj any) (LoadAPIKeyProfileTemplateInput, error) {
+	var it LoadAPIKeyProfileTemplateInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"templateID", "apiKeyID"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "templateID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("templateID"))
+			data, err := ec.unmarshalNID2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TemplateID = data
+		case "apiKeyID":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("apiKeyID"))
+			data, err := ec.unmarshalNID2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐGUID(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.APIKeyID = data
 		}
 	}
 
@@ -66015,7 +67966,7 @@ func (ec *executionContext) unmarshalInputProjectWhereInput(ctx context.Context,
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"not", "and", "or", "id", "idNEQ", "idIn", "idNotIn", "idGT", "idGTE", "idLT", "idLTE", "createdAt", "createdAtNEQ", "createdAtIn", "createdAtNotIn", "createdAtGT", "createdAtGTE", "createdAtLT", "createdAtLTE", "updatedAt", "updatedAtNEQ", "updatedAtIn", "updatedAtNotIn", "updatedAtGT", "updatedAtGTE", "updatedAtLT", "updatedAtLTE", "name", "nameNEQ", "nameIn", "nameNotIn", "nameGT", "nameGTE", "nameLT", "nameLTE", "nameContains", "nameHasPrefix", "nameHasSuffix", "nameEqualFold", "nameContainsFold", "description", "descriptionNEQ", "descriptionIn", "descriptionNotIn", "descriptionGT", "descriptionGTE", "descriptionLT", "descriptionLTE", "descriptionContains", "descriptionHasPrefix", "descriptionHasSuffix", "descriptionEqualFold", "descriptionContainsFold", "status", "statusNEQ", "statusIn", "statusNotIn", "hasUsers", "hasUsersWith", "hasRoles", "hasRolesWith", "hasAPIKeys", "hasAPIKeysWith", "hasRequests", "hasRequestsWith", "hasUsageLogs", "hasUsageLogsWith", "hasThreads", "hasThreadsWith", "hasTraces", "hasTracesWith", "hasPrompts", "hasPromptsWith", "hasProjectUsers", "hasProjectUsersWith"}
+	fieldsInOrder := [...]string{"not", "and", "or", "id", "idNEQ", "idIn", "idNotIn", "idGT", "idGTE", "idLT", "idLTE", "createdAt", "createdAtNEQ", "createdAtIn", "createdAtNotIn", "createdAtGT", "createdAtGTE", "createdAtLT", "createdAtLTE", "updatedAt", "updatedAtNEQ", "updatedAtIn", "updatedAtNotIn", "updatedAtGT", "updatedAtGTE", "updatedAtLT", "updatedAtLTE", "name", "nameNEQ", "nameIn", "nameNotIn", "nameGT", "nameGTE", "nameLT", "nameLTE", "nameContains", "nameHasPrefix", "nameHasSuffix", "nameEqualFold", "nameContainsFold", "description", "descriptionNEQ", "descriptionIn", "descriptionNotIn", "descriptionGT", "descriptionGTE", "descriptionLT", "descriptionLTE", "descriptionContains", "descriptionHasPrefix", "descriptionHasSuffix", "descriptionEqualFold", "descriptionContainsFold", "status", "statusNEQ", "statusIn", "statusNotIn", "hasUsers", "hasUsersWith", "hasRoles", "hasRolesWith", "hasAPIKeys", "hasAPIKeysWith", "hasRequests", "hasRequestsWith", "hasUsageLogs", "hasUsageLogsWith", "hasThreads", "hasThreadsWith", "hasTraces", "hasTracesWith", "hasPrompts", "hasPromptsWith", "hasAPIKeyProfileTemplates", "hasAPIKeyProfileTemplatesWith", "hasProjectUsers", "hasProjectUsersWith"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -66565,6 +68516,20 @@ func (ec *executionContext) unmarshalInputProjectWhereInput(ctx context.Context,
 				return it, err
 			}
 			it.HasPromptsWith = data
+		case "hasAPIKeyProfileTemplates":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasAPIKeyProfileTemplates"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HasAPIKeyProfileTemplates = data
+		case "hasAPIKeyProfileTemplatesWith":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasAPIKeyProfileTemplatesWith"))
+			data, err := ec.unmarshalOAPIKeyProfileTemplateWhereInput2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HasAPIKeyProfileTemplatesWith = data
 		case "hasProjectUsers":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasProjectUsers"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -74339,6 +76304,40 @@ func (ec *executionContext) unmarshalInputUpdateAPIKeyInput(ctx context.Context,
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateAPIKeyProfileTemplateInput(ctx context.Context, obj any) (ent.UpdateAPIKeyProfileTemplateInput, error) {
+	var it ent.UpdateAPIKeyProfileTemplateInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateAPIKeyProfilesInput(ctx context.Context, obj any) (objects.APIKeyProfiles, error) {
 	var it objects.APIKeyProfiles
 	asMap := map[string]any{}
@@ -75208,6 +77207,33 @@ func (ec *executionContext) unmarshalInputUpdateOIDCIdentityInput(ctx context.Co
 				return it, err
 			}
 			it.ClearLastLoginAt = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdatePassThroughSettingsInput(ctx context.Context, obj any) (UpdatePassThroughSettingsInput, error) {
+	var it UpdatePassThroughSettingsInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"enabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
 		}
 	}
 
@@ -80174,6 +82200,11 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			return graphql.Null
 		}
 		return ec._Channel(ctx, sel, obj)
+	case *ent.APIKeyProfileTemplate:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._APIKeyProfileTemplate(ctx, sel, obj)
 	case *ent.APIKey:
 		if obj == nil {
 			return graphql.Null
@@ -80634,6 +82665,257 @@ func (ec *executionContext) _APIKeyProfileQuotaUsage(ctx context.Context, sel as
 			}
 		case "usage":
 			out.Values[i] = ec._APIKeyProfileQuotaUsage_usage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var aPIKeyProfileTemplateImplementors = []string{"APIKeyProfileTemplate", "Node"}
+
+func (ec *executionContext) _APIKeyProfileTemplate(ctx context.Context, sel ast.SelectionSet, obj *ent.APIKeyProfileTemplate) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, aPIKeyProfileTemplateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("APIKeyProfileTemplate")
+		case "id":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._APIKeyProfileTemplate_id(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "createdAt":
+			out.Values[i] = ec._APIKeyProfileTemplate_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "updatedAt":
+			out.Values[i] = ec._APIKeyProfileTemplate_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "name":
+			out.Values[i] = ec._APIKeyProfileTemplate_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "description":
+			out.Values[i] = ec._APIKeyProfileTemplate_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "projectID":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._APIKeyProfileTemplate_projectID(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "profile":
+			out.Values[i] = ec._APIKeyProfileTemplate_profile(ctx, field, obj)
+		case "project":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._APIKeyProfileTemplate_project(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var aPIKeyProfileTemplateConnectionImplementors = []string{"APIKeyProfileTemplateConnection"}
+
+func (ec *executionContext) _APIKeyProfileTemplateConnection(ctx context.Context, sel ast.SelectionSet, obj *ent.APIKeyProfileTemplateConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, aPIKeyProfileTemplateConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("APIKeyProfileTemplateConnection")
+		case "edges":
+			out.Values[i] = ec._APIKeyProfileTemplateConnection_edges(ctx, field, obj)
+		case "pageInfo":
+			out.Values[i] = ec._APIKeyProfileTemplateConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._APIKeyProfileTemplateConnection_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var aPIKeyProfileTemplateEdgeImplementors = []string{"APIKeyProfileTemplateEdge"}
+
+func (ec *executionContext) _APIKeyProfileTemplateEdge(ctx context.Context, sel ast.SelectionSet, obj *ent.APIKeyProfileTemplateEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, aPIKeyProfileTemplateEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("APIKeyProfileTemplateEdge")
+		case "node":
+			out.Values[i] = ec._APIKeyProfileTemplateEdge_node(ctx, field, obj)
+		case "cursor":
+			out.Values[i] = ec._APIKeyProfileTemplateEdge_cursor(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -83861,6 +86143,8 @@ func (ec *executionContext) _ChannelSettings(ctx context.Context, sel ast.Select
 			out.Values[i] = ec._ChannelSettings_hideOriginalModels(ctx, field, obj)
 		case "hideMappedModels":
 			out.Values[i] = ec._ChannelSettings_hideMappedModels(ctx, field, obj)
+		case "lowercaseModelId":
+			out.Values[i] = ec._ChannelSettings_lowercaseModelId(ctx, field, obj)
 		case "proxy":
 			out.Values[i] = ec._ChannelSettings_proxy(ctx, field, obj)
 		case "transformOptions":
@@ -87004,6 +89288,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createApiKeyProfileTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createApiKeyProfileTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateApiKeyProfileTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateApiKeyProfileTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteApiKeyProfileTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteApiKeyProfileTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "loadApiKeyProfileTemplate":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_loadApiKeyProfileTemplate(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateMe":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateMe(ctx, field)
@@ -87147,6 +89459,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateUserAgentPassThroughSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateUserAgentPassThroughSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatePassThroughSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updatePassThroughSettings(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -87890,6 +90209,45 @@ func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var passThroughSettingsImplementors = []string{"PassThroughSettings"}
+
+func (ec *executionContext) _PassThroughSettings(ctx context.Context, sel ast.SelectionSet, obj *PassThroughSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, passThroughSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PassThroughSettings")
+		case "enabled":
+			out.Values[i] = ec._PassThroughSettings_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var priceTierImplementors = []string{"PriceTier"}
 
 func (ec *executionContext) _PriceTier(ctx context.Context, sel ast.SelectionSet, obj *objects.PriceTier) graphql.Marshaler {
@@ -88312,6 +90670,42 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 					}
 				}()
 				res = ec._Project_prompts(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "apiKeyProfileTemplates":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Project_apiKeyProfileTemplates(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -89648,6 +92042,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "apiKeyProfileTemplates":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_apiKeyProfileTemplates(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "channels":
 			field := field
 
@@ -90940,6 +93356,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "passThroughSettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_passThroughSettings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "getCacheDiagnostics":
 			field := field
 
@@ -91419,8 +93857,6 @@ func (ec *executionContext) _Request(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
-		case "requestHeaders":
-			out.Values[i] = ec._Request_requestHeaders(ctx, field, obj)
 		case "channelID":
 			field := field
 
@@ -91705,6 +94141,39 @@ func (ec *executionContext) _Request(ctx context.Context, sel ast.SelectionSet, 
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "requestHeaders":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Request_requestHeaders(ctx, field, obj)
 				return res
 			}
 
@@ -92133,8 +94602,6 @@ func (ec *executionContext) _RequestExecution(ctx context.Context, sel ast.Selec
 			out.Values[i] = ec._RequestExecution_metricsFirstTokenLatencyMs(ctx, field, obj)
 		case "metricsReasoningDurationMs":
 			out.Values[i] = ec._RequestExecution_metricsReasoningDurationMs(ctx, field, obj)
-		case "requestHeaders":
-			out.Values[i] = ec._RequestExecution_requestHeaders(ctx, field, obj)
 		case "request":
 			field := field
 
@@ -92214,6 +94681,39 @@ func (ec *executionContext) _RequestExecution(ctx context.Context, sel ast.Selec
 					}
 				}()
 				res = ec._RequestExecution_dataStorage(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "requestHeaders":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._RequestExecution_requestHeaders(ctx, field, obj)
 				return res
 			}
 
@@ -98349,6 +100849,55 @@ func (ec *executionContext) marshalNAPIKeyProfileQuotaUsage2ᚖgithubᚗcomᚋlo
 	return ec._APIKeyProfileQuotaUsage(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNAPIKeyProfileTemplate2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplate(ctx context.Context, sel ast.SelectionSet, v ent.APIKeyProfileTemplate) graphql.Marshaler {
+	return ec._APIKeyProfileTemplate(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAPIKeyProfileTemplate2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplate(ctx context.Context, sel ast.SelectionSet, v *ent.APIKeyProfileTemplate) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._APIKeyProfileTemplate(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAPIKeyProfileTemplateConnection2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateConnection(ctx context.Context, sel ast.SelectionSet, v ent.APIKeyProfileTemplateConnection) graphql.Marshaler {
+	return ec._APIKeyProfileTemplateConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAPIKeyProfileTemplateConnection2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateConnection(ctx context.Context, sel ast.SelectionSet, v *ent.APIKeyProfileTemplateConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._APIKeyProfileTemplateConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAPIKeyProfileTemplateOrderField2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateOrderField(ctx context.Context, v any) (*ent.APIKeyProfileTemplateOrderField, error) {
+	var res = new(ent.APIKeyProfileTemplateOrderField)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAPIKeyProfileTemplateOrderField2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateOrderField(ctx context.Context, sel ast.SelectionSet, v *ent.APIKeyProfileTemplateOrderField) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalNAPIKeyProfileTemplateWhereInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInput(ctx context.Context, v any) (*ent.APIKeyProfileTemplateWhereInput, error) {
+	res, err := ec.unmarshalInputAPIKeyProfileTemplateWhereInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNAPIKeyQuota2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyQuota(ctx context.Context, sel ast.SelectionSet, v *objects.APIKeyQuota) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -99908,6 +102457,11 @@ func (ec *executionContext) unmarshalNCreateAPIKeyInput2githubᚗcomᚋloopljᚋ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNCreateAPIKeyProfileTemplateInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐCreateAPIKeyProfileTemplateInput(ctx context.Context, v any) (ent.CreateAPIKeyProfileTemplateInput, error) {
+	res, err := ec.unmarshalInputCreateAPIKeyProfileTemplateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNCreateChannelInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐCreateChannelInput(ctx context.Context, v any) (ent.CreateChannelInput, error) {
 	res, err := ec.unmarshalInputCreateChannelInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -100613,6 +103167,11 @@ func (ec *executionContext) marshalNJSONRawMessageInput2githubᚗcomᚋloopljᚋ
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) unmarshalNLoadApiKeyProfileTemplateInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐLoadAPIKeyProfileTemplateInput(ctx context.Context, v any) (LoadAPIKeyProfileTemplateInput, error) {
+	res, err := ec.unmarshalInputLoadApiKeyProfileTemplateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNMap2map(ctx context.Context, v any) (map[string]any, error) {
@@ -101424,6 +103983,20 @@ func (ec *executionContext) unmarshalNOverrideOperationInput2githubᚗcomᚋloop
 
 func (ec *executionContext) marshalNPageInfo2entgoᚗioᚋcontribᚋentgqlᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v entgql.PageInfo[int]) graphql.Marshaler {
 	return ec._PageInfo(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPassThroughSettings2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐPassThroughSettings(ctx context.Context, sel ast.SelectionSet, v PassThroughSettings) graphql.Marshaler {
+	return ec._PassThroughSettings(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPassThroughSettings2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐPassThroughSettings(ctx context.Context, sel ast.SelectionSet, v *PassThroughSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PassThroughSettings(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNPriceItemCode2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐPriceItemCode(ctx context.Context, v any) (objects.PriceItemCode, error) {
@@ -103335,6 +105908,11 @@ func (ec *executionContext) unmarshalNUpdateAPIKeyInput2githubᚗcomᚋloopljᚋ
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNUpdateAPIKeyProfileTemplateInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐUpdateAPIKeyProfileTemplateInput(ctx context.Context, v any) (ent.UpdateAPIKeyProfileTemplateInput, error) {
+	res, err := ec.unmarshalInputUpdateAPIKeyProfileTemplateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNUpdateAPIKeyProfilesInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyProfiles(ctx context.Context, v any) (objects.APIKeyProfiles, error) {
 	res, err := ec.unmarshalInputUpdateAPIKeyProfilesInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -103382,6 +105960,11 @@ func (ec *executionContext) unmarshalNUpdateModelInput2githubᚗcomᚋloopljᚋa
 
 func (ec *executionContext) unmarshalNUpdateMyPasswordInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐUpdateMyPasswordInput(ctx context.Context, v any) (UpdateMyPasswordInput, error) {
 	res, err := ec.unmarshalInputUpdateMyPasswordInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdatePassThroughSettingsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐUpdatePassThroughSettingsInput(ctx context.Context, v any) (UpdatePassThroughSettingsInput, error) {
+	res, err := ec.unmarshalInputUpdatePassThroughSettingsInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
@@ -104238,6 +106821,13 @@ func (ec *executionContext) marshalOAPIKeyProfile2ᚕgithubᚗcomᚋloopljᚋaxo
 	return ret
 }
 
+func (ec *executionContext) marshalOAPIKeyProfile2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyProfile(ctx context.Context, sel ast.SelectionSet, v *objects.APIKeyProfile) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._APIKeyProfile(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalOAPIKeyProfileInput2ᚕgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyProfileᚄ(ctx context.Context, v any) ([]objects.APIKeyProfile, error) {
 	if v == nil {
 		return nil, nil
@@ -104254,6 +106844,103 @@ func (ec *executionContext) unmarshalOAPIKeyProfileInput2ᚕgithubᚗcomᚋloopl
 		}
 	}
 	return res, nil
+}
+
+func (ec *executionContext) unmarshalOAPIKeyProfileInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyProfile(ctx context.Context, v any) (*objects.APIKeyProfile, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputAPIKeyProfileInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOAPIKeyProfileTemplate2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplate(ctx context.Context, sel ast.SelectionSet, v *ent.APIKeyProfileTemplate) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._APIKeyProfileTemplate(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOAPIKeyProfileTemplateEdge2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateEdge(ctx context.Context, sel ast.SelectionSet, v []*ent.APIKeyProfileTemplateEdge) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalOAPIKeyProfileTemplateEdge2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateEdge(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	return ret
+}
+
+func (ec *executionContext) marshalOAPIKeyProfileTemplateEdge2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateEdge(ctx context.Context, sel ast.SelectionSet, v *ent.APIKeyProfileTemplateEdge) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._APIKeyProfileTemplateEdge(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOAPIKeyProfileTemplateOrder2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateOrder(ctx context.Context, v any) (*ent.APIKeyProfileTemplateOrder, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputAPIKeyProfileTemplateOrder(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOAPIKeyProfileTemplateWhereInput2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInputᚄ(ctx context.Context, v any) ([]*ent.APIKeyProfileTemplateWhereInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*ent.APIKeyProfileTemplateWhereInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAPIKeyProfileTemplateWhereInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOAPIKeyProfileTemplateWhereInput2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐAPIKeyProfileTemplateWhereInput(ctx context.Context, v any) (*ent.APIKeyProfileTemplateWhereInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputAPIKeyProfileTemplateWhereInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOAPIKeyProfiles2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋobjectsᚐAPIKeyProfiles(ctx context.Context, sel ast.SelectionSet, v *objects.APIKeyProfiles) graphql.Marshaler {
