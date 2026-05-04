@@ -1270,22 +1270,7 @@ func (s *RequestService) LoadRequestExecutionResponseChunks(ctx context.Context,
 	return []objects.JSONRawMessage{}, nil
 }
 
-// LoadRequestHeaders returns the request headers.
-func (s *RequestService) LoadRequestHeaders(ctx context.Context, req *ent.Request) (objects.JSONRawMessage, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request is nil")
-	}
 
-	if req.RequestHeaders != nil {
-		return req.RequestHeaders, nil
-	}
-
-	dbReq, err := s.db.Request.Query().Where(request.IDEQ(req.ID)).Select(request.FieldRequestHeaders).Only(ctx)
-	if err != nil || dbReq.RequestHeaders == nil {
-		return objects.JSONRawMessage("{}"), nil
-	}
-	return dbReq.RequestHeaders, nil
-}
 
 // LoadRequestExecutionRequestHeaders returns the execution request headers.
 func (s *RequestService) LoadRequestExecutionRequestHeaders(ctx context.Context, exec *ent.RequestExecution) (objects.JSONRawMessage, error) {

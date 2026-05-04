@@ -144,7 +144,7 @@ func (t *OutboundTransformer) TransformRequest(ctx context.Context, llmReq *llm.
 	}
 
 	// Convert to OpenAI request format.
-	oaiReq := openai.RequestFromLLM(llmReq)
+	oaiReq := openai.RequestFromLLM(llmReq, openai.ReasoningFieldAll)
 
 	// Marshal request body.
 	body, err := json.Marshal(oaiReq)
