@@ -46,6 +46,7 @@ func (Channel) Fields() []ent.Field {
 				"gemini_openai",
 				"gemini",
 				"gemini_vertex",
+				"gemini_vertex_openai",
 				"deepseek",
 				"deepseek_anthropic",
 				"deepinfra",

@@ -372,7 +372,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   });
   const [useGeminiVertex, setUseGeminiVertex] = useState(() => {
     if (initialRow) {
-      return initialRow.type === 'gemini_vertex';
+      return initialRow.type === 'gemini_vertex' || initialRow.type === 'gemini_vertex_openai';
     }
     return false;
   });
@@ -396,7 +396,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     setSelectedProvider(provider);
     const apiFormat = CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS;
     setSelectedApiFormat(apiFormat);
-    setUseGeminiVertex(initialRow.type === 'gemini_vertex');
+    setUseGeminiVertex(initialRow.type === 'gemini_vertex' || initialRow.type === 'gemini_vertex_openai');
     setUseAnthropicAws(initialRow.type === 'anthropic_aws');
     setUseKimiCoding(initialRow.type === 'moonshot_coding');
 
@@ -500,9 +500,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
   // Determine the actual channel type based on provider and API format
   const derivedChannelType = useMemo(() => {
-    // If gemini/contents is selected and vertex checkbox is checked, use gemini_vertex
-    if (selectedApiFormat === 'gemini/contents' && useGeminiVertex) {
-      return 'gemini_vertex';
+    // If gemini provider is selected, check vertex checkbox
+    if (selectedProvider === 'gemini' && useGeminiVertex) {
+      if (selectedApiFormat === 'gemini/contents') return 'gemini_vertex';
+      if (selectedApiFormat === 'openai/chat_completions') return 'gemini_vertex_openai';
     }
 
     // If anthropic/messages is selected, check which variant is selected
@@ -713,8 +714,12 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
       setSelectedApiFormat(newFormat);
       const newChannelType =
-        provider === 'gemini' && newFormat === 'gemini/contents' && useGeminiVertex
-          ? 'gemini_vertex'
+        provider === 'gemini' && useGeminiVertex
+          ? newFormat === 'gemini/contents'
+            ? 'gemini_vertex'
+            : newFormat === 'openai/chat_completions'
+              ? 'gemini_vertex_openai'
+              : getChannelTypeForApiFormat(provider, newFormat)
           : provider === 'anthropic' && newFormat === 'anthropic/messages' && useAnthropicAws
             ? 'anthropic_aws'
             : provider === 'moonshot' && newFormat === 'anthropic/messages' && useKimiCoding
@@ -785,16 +790,24 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
       if (isOAuthChannel) return;
       setUseGeminiVertex(checked);
 
-      if (selectedApiFormat === 'gemini/contents') {
-        const newChannelType = checked ? 'gemini_vertex' : 'gemini';
-        form.setValue('type', newChannelType);
+      if (selectedProvider === 'gemini') {
+        let newChannelType: ChannelType | null = null;
+        if (selectedApiFormat === 'gemini/contents') {
+          newChannelType = checked ? 'gemini_vertex' : 'gemini';
+        } else if (selectedApiFormat === 'openai/chat_completions') {
+          newChannelType = checked ? 'gemini_vertex_openai' : 'gemini_openai';
+        }
 
-        if (!isEdit) {
-          const baseURLFieldState = form.getFieldState('baseURL', form.formState);
-          if (!baseURLFieldState.isDirty && !isDuplicate) {
-            const baseURL = getDefaultBaseURL(newChannelType);
-            if (baseURL) {
-              form.resetField('baseURL', { defaultValue: baseURL });
+        if (newChannelType) {
+          form.setValue('type', newChannelType);
+
+          if (!isEdit) {
+            const baseURLFieldState = form.getFieldState('baseURL', form.formState);
+            if (!baseURLFieldState.isDirty && !isDuplicate) {
+              const baseURL = getDefaultBaseURL(newChannelType);
+              if (baseURL) {
+                form.resetField('baseURL', { defaultValue: baseURL });
+              }
             }
           }
         }
@@ -1440,7 +1453,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
             if (initialRow) {
               setSelectedProvider(getProviderFromChannelType(initialRow.type) || 'openai');
               setSelectedApiFormat(CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS);
-              setUseGeminiVertex(initialRow.type === 'gemini_vertex');
+              setUseGeminiVertex(initialRow.type === 'gemini_vertex' || initialRow.type === 'gemini_vertex_openai');
               setUseAnthropicAws(initialRow.type === 'anthropic_aws');
               setUseKimiCoding(initialRow.type === 'moonshot_coding');
             } else {
@@ -1539,7 +1552,9 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                 label: getApiFormatLabel(format),
                               }))}
                             />
-                            {selectedApiFormat === 'gemini/contents' && (
+                            {(selectedApiFormat === 'gemini/contents' ||
+                              (selectedApiFormat === 'openai/chat_completions' &&
+                                selectedProvider === 'gemini')) && (
                               <div className='mt-3'>
                                 <label
                                   className={`flex items-center gap-2 text-sm ${isOAuthChannel ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}

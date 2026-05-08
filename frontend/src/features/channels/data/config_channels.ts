@@ -164,6 +164,14 @@ export const CHANNEL_CONFIGS: Record<ChannelType, ChannelConfig> = {
     color: 'bg-green-100 text-green-800 border-green-200',
     icon: Google,
   },
+  gemini_vertex_openai: {
+    channelType: 'gemini_vertex_openai',
+    baseURL: 'https://aiplatform.googleapis.com/v1',
+    defaultModels: ['zai-org/glm-5-maas', 'meta/llama-4-scout-17b-16e-instruct'],
+    apiFormat: OPENAI_CHAT_COMPLETIONS,
+    color: 'bg-green-100 text-green-800 border-green-200',
+    icon: Google,
+  },
   minimax: {
     channelType: 'minimax',
     baseURL: 'https://api.minimaxi.com/v1',
@@ -666,6 +674,7 @@ export const CHANNEL_TYPE_TO_PROVIDER: Record<ChannelType, Provider> = {
   gemini: 'gemini',
   gemini_openai: 'gemini',
   gemini_vertex: 'gemini',
+  gemini_vertex_openai: 'gemini',
   moonshot: 'moonshot',
   moonshot_anthropic: 'moonshot',
   zhipu: 'zhipu',

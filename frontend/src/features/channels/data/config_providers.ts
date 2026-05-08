@@ -62,7 +62,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     provider: 'gemini',
     icon: Google,
     color: 'bg-green-100 text-green-800 border-green-200',
-    channelTypes: ['gemini', 'gemini_vertex', 'gemini_openai'],
+    channelTypes: ['gemini', 'gemini_vertex', 'gemini_vertex_openai', 'gemini_openai'],
   },
   anthropic: {
     provider: 'anthropic',
