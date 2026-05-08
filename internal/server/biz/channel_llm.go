@@ -894,6 +894,23 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel) (*Channel
 		ch.Outbound = transformer
 
 		return ch, nil
+	case channel.TypeGeminiVertexOpenai:
+		if c.Credentials.GCP == nil {
+			return nil, errors.New("GCP credentials are required for gemini_vertex_openai channel")
+		}
+
+		transformer, err := geminioai.NewVertexOutboundTransformer(geminioai.VertexConfig{
+			Region:    c.Credentials.GCP.Region,
+			ProjectID: c.Credentials.GCP.ProjectID,
+			JSONData:  c.Credentials.GCP.JSONData,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gemini_vertex_openai outbound transformer: %w", err)
+		}
+
+		ch.Outbound = transformer
+
+		return ch, nil
 	case channel.TypeJina:
 		transformer, err := jina.NewOutboundTransformerWithConfig(&jina.Config{
 			BaseURL:        c.BaseURL,

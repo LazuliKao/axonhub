@@ -178,7 +178,7 @@ func (f *ModelFetcher) getDefaultModelsByType(ctx context.Context, typ channel.T
 		return lo.Map(claudecode.DefaultModels(), func(id string, _ int) ModelIdentify { return ModelIdentify{ID: id} })
 	case channel.TypeGithubCopilot:
 		return f.fetchCopilotModels(ctx)
-	case channel.TypeGeminiVertex:
+	case channel.TypeGeminiVertex, channel.TypeGeminiVertexOpenai:
 		return f.fetchGeminiVertexModels(ctx)
 	default:
 		return nil
