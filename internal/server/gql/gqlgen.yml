@@ -207,6 +207,12 @@ models:
   AutoDisableChannelStatusInput:
     model:
       - github.com/looplj/axonhub/internal/server/biz.AutoDisableChannelStatus
+  UpstreamErrorPolicy:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.UpstreamErrorPolicy
+  UpstreamErrorPolicyInput:
+    model:
+      - github.com/looplj/axonhub/internal/server/biz.UpstreamErrorPolicy
   UpdateAPIKeyProfilesInput:
     model:
       - github.com/looplj/axonhub/internal/objects.APIKeyProfiles
@@ -618,6 +624,12 @@ models:
   QuotaEnforcementMode:
     model:
       - github.com/looplj/axonhub/internal/server/biz.QuotaEnforcementMode
+  TriggerGcCleanupInput:
+    model:
+      - github.com/looplj/axonhub/internal/server/gc.TriggerGcCleanupInput
+  GcCleanupPreviewItem:
+    model:
+      - github.com/looplj/axonhub/internal/server/gc.GcCleanupPreviewItem
   PromptSettings:
     model:
       - github.com/looplj/axonhub/internal/objects.PromptSettings

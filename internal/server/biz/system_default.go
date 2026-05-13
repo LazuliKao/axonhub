@@ -25,6 +25,9 @@ var defaultRetryPolicy = RetryPolicy{
 	RetryDelayMs:            1000,
 	LoadBalancerStrategy:    "adaptive",
 	Enabled:                 true,
+	UpstreamErrorPolicy: UpstreamErrorPolicy{
+		Mode: UpstreamErrorModePassthrough,
+	},
 }
 
 var defaultModelSettings = SystemModelSettings{
@@ -55,6 +58,7 @@ var defaultAutoBackupSettings = AutoBackupSettings{
 	IncludeModels:      true,
 	IncludeAPIKeys:     false,
 	IncludeModelPrices: true,
+	IncludeUsageStats:  false,
 	RetentionDays:      30,
 }
 

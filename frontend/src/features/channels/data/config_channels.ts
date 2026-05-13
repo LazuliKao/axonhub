@@ -24,6 +24,7 @@ import {
   Github,
   Claude,
   Cerebras,
+  Qiniu,
   XiaomiMiMo,
   Fireworks,
   Ollama,
@@ -131,6 +132,14 @@ export const CHANNEL_CONFIGS: Record<ChannelType, ChannelConfig> = {
     apiFormat: OPENAI_CHAT_COMPLETIONS,
     color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     icon: DeepInfra,
+  },
+  qiniu: {
+    channelType: 'qiniu',
+    baseURL: 'https://api.qnaigc.com/v1',
+    defaultModels: ['deepseek-v3'],
+    apiFormat: OPENAI_CHAT_COMPLETIONS,
+    color: 'bg-blue-100 text-blue-800 border-blue-200',
+    icon: Qiniu,
   },
   anthropic: {
     channelType: 'anthropic',
@@ -629,6 +638,7 @@ export type Provider =
   | 'claudecode'
   | 'deepseek'
   | 'deepinfra'
+  | 'qiniu'
   | 'gemini'
   | 'moonshot'
   | 'zhipu'
@@ -671,6 +681,7 @@ export const CHANNEL_TYPE_TO_PROVIDER: Record<ChannelType, Provider> = {
   deepseek: 'deepseek',
   deepseek_anthropic: 'deepseek',
   deepinfra: 'deepinfra',
+  qiniu: 'qiniu',
   gemini: 'gemini',
   gemini_openai: 'gemini',
   gemini_vertex: 'gemini',

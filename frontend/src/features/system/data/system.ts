@@ -97,6 +97,10 @@ const RETRY_POLICY_QUERY = `
       loadBalancerStrategy
       enabled
       emptyResponseDetection
+      upstreamErrorPolicy {
+        mode
+        customMessage
+      }
       autoDisableChannel {
         enabled
         statuses {
@@ -196,8 +200,19 @@ const COMPLETE_AUTO_DISABLE_CHANNEL_ONBOARDING_MUTATION = `
 `;
 
 const TRIGGER_GC_CLEANUP_MUTATION = `
-  mutation triggerGcCleanup {
-    triggerGcCleanup
+  mutation triggerGcCleanup($input: TriggerGcCleanupInput!) {
+    triggerGcCleanup(input: $input)
+  }
+`;
+
+const PREVIEW_GC_CLEANUP_QUERY = `
+  query previewGcCleanup($input: TriggerGcCleanupInput!) {
+    previewGcCleanup(input: $input) {
+      resourceType
+      estimatedCount
+      cutoffTime
+      retentionDays
+    }
   }
 `;
 
@@ -264,6 +279,18 @@ export interface CleanupOptionInput {
   cleanupDays: number;
 }
 
+export interface TriggerGcCleanupInput {
+  requestsCleanupDays: number;
+  usageLogsCleanupDays: number;
+}
+
+export interface GcCleanupPreviewItem {
+  resourceType: string;
+  estimatedCount: number;
+  cutoffTime: string;
+  retentionDays: number;
+}
+
 export interface AutoDisableChannelStatus {
   status: number;
   times: number;
@@ -307,6 +334,12 @@ export interface RetryPolicy {
   enabled: boolean;
   autoDisableChannel: AutoDisableChannel;
   emptyResponseDetection: boolean;
+  upstreamErrorPolicy: UpstreamErrorPolicy;
+}
+
+export interface UpstreamErrorPolicy {
+  mode: string;
+  customMessage: string;
 }
 
 export interface AutoDisableChannelStatusInput {
@@ -327,6 +360,7 @@ export interface RetryPolicyInput {
   enabled?: boolean;
   autoDisableChannel?: AutoDisableChannelInput;
   emptyResponseDetection?: boolean;
+  upstreamErrorPolicy?: Partial<UpstreamErrorPolicy>;
 }
 
 export interface UpdateDefaultDataStorageInput {
@@ -465,8 +499,8 @@ export function useUpdateStoragePolicy() {
 
 export function useTriggerGcCleanup() {
   return useMutation({
-    mutationFn: async () => {
-      const data = await graphqlRequest<{ triggerGcCleanup: boolean }>(TRIGGER_GC_CLEANUP_MUTATION);
+    mutationFn: async (input: TriggerGcCleanupInput) => {
+      const data = await graphqlRequest<{ triggerGcCleanup: boolean }>(TRIGGER_GC_CLEANUP_MUTATION, { input });
       return data.triggerGcCleanup;
     },
     onSuccess: () => {
@@ -474,6 +508,15 @@ export function useTriggerGcCleanup() {
     },
     onError: () => {
       toast.error(i18n.t('system.storage.policy.runCleanupError'));
+    },
+  });
+}
+
+export function usePreviewGcCleanup() {
+  return useMutation({
+    mutationFn: async (input: TriggerGcCleanupInput) => {
+      const data = await graphqlRequest<{ previewGcCleanup: GcCleanupPreviewItem[] }>(PREVIEW_GC_CLEANUP_QUERY, { input });
+      return data.previewGcCleanup;
     },
   });
 }
@@ -1015,6 +1058,7 @@ export interface BackupOptionsInput {
   includeModelPrices: boolean;
   includeModels: boolean;
   includeAPIKeys: boolean;
+  includeUsageStats: boolean;
 }
 
 export interface BackupPayload {
@@ -1028,6 +1072,7 @@ export interface RestoreOptionsInput {
   includeModelPrices: boolean;
   includeModels: boolean;
   includeAPIKeys: boolean;
+  includeUsageStats: boolean;
   channelConflictStrategy: 'skip' | 'overwrite' | 'error';
   modelConflictStrategy: 'skip' | 'overwrite' | 'error';
   modelPriceConflictStrategy: 'skip' | 'overwrite' | 'error';
@@ -1124,6 +1169,7 @@ const AUTO_BACKUP_SETTINGS_QUERY = `
       includeModels
       includeAPIKeys
       includeModelPrices
+      includeUsageStats
       retentionDays
       lastBackupAt
       lastBackupError
@@ -1156,6 +1202,7 @@ export interface AutoBackupSettings {
   includeModels: boolean;
   includeAPIKeys: boolean;
   includeModelPrices: boolean;
+  includeUsageStats: boolean;
   retentionDays: number;
   lastBackupAt?: string;
   lastBackupError?: string;
@@ -1169,6 +1216,7 @@ export interface UpdateAutoBackupSettingsInput {
   includeModels?: boolean;
   includeAPIKeys?: boolean;
   includeModelPrices?: boolean;
+  includeUsageStats?: boolean;
   retentionDays?: number;
 }
 

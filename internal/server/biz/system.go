@@ -218,12 +218,27 @@ type AutoBackupSettings struct {
 	IncludeModels      bool `json:"include_models"`
 	IncludeAPIKeys     bool `json:"include_api_keys"`
 	IncludeModelPrices bool `json:"include_model_prices"`
+	IncludeUsageStats  bool `json:"include_usage_stats"`
 	// RetentionDays defines how many days to keep backups (0 = keep all)
 	RetentionDays int `json:"retention_days"`
 	// LastBackupAt is the timestamp of the last successful backup
 	LastBackupAt *time.Time `json:"last_backup_at,omitempty"`
 	// LastBackupError is the error message from the last backup attempt (if any)
 	LastBackupError string `json:"last_backup_error,omitempty"`
+}
+
+type autoBackupSettingsJSON struct {
+	Enabled            bool            `json:"enabled"`
+	Frequency          BackupFrequency `json:"frequency"`
+	DataStorageID      int             `json:"data_storage_id"`
+	IncludeChannels    bool            `json:"include_channels"`
+	IncludeModels      bool            `json:"include_models"`
+	IncludeAPIKeys     bool            `json:"include_api_keys"`
+	IncludeModelPrices bool            `json:"include_model_prices"`
+	IncludeUsageStats  *bool           `json:"include_usage_stats"`
+	RetentionDays      int             `json:"retention_days"`
+	LastBackupAt       *time.Time      `json:"last_backup_at,omitempty"`
+	LastBackupError    string          `json:"last_backup_error,omitempty"`
 }
 
 // StoragePolicy represents the storage policy configuration.
@@ -251,7 +266,18 @@ const (
 
 	// LoadBalancerStrategyCircuitBreaker is a dynamic load balancer strategy that monitors the health of channels and fails over to a backup channel when the primary channel is unhealthy.
 	LoadBalancerStrategyCircuitBreaker = "circuit-breaker"
+
+	// UpstreamErrorModePassthrough keeps provider errors unchanged.
+	UpstreamErrorModePassthrough = "passthrough"
+
+	// UpstreamErrorModeHidden replaces provider errors with a safe default message.
+	UpstreamErrorModeHidden = "hidden"
+
+	// UpstreamErrorModeCustom replaces provider errors with an admin-defined message.
+	UpstreamErrorModeCustom = "custom"
 )
+
+const DefaultUpstreamErrorMessage = "Upstream provider request failed. Please try again later."
 
 // RetryPolicy represents the retry policy configuration.
 type RetryPolicy struct {
@@ -276,6 +302,17 @@ type RetryPolicy struct {
 	// When enabled, the pipeline pre-reads stream events to check if the response
 	// contains meaningful content, and marks empty responses as failed attempts for retry handling.
 	EmptyResponseDetection bool `json:"empty_response_detection"`
+
+	// UpstreamErrorPolicy controls how provider errors are exposed to API users.
+	UpstreamErrorPolicy UpstreamErrorPolicy `json:"upstream_error_policy"`
+}
+
+type UpstreamErrorPolicy struct {
+	// Mode controls whether provider errors are passed through, hidden, or replaced with a custom message.
+	Mode string `json:"mode"`
+
+	// CustomMessage is returned to API users when Mode is custom.
+	CustomMessage string `json:"custom_message"`
 }
 
 type AutoDisableChannel struct {
@@ -850,6 +887,12 @@ func (s *SystemService) StoragePolicyOrDefault(ctx context.Context) *StoragePoli
 
 // SetStoragePolicy sets the storage policy configuration.
 func (s *SystemService) SetStoragePolicy(ctx context.Context, policy *StoragePolicy) error {
+	for _, opt := range policy.CleanupOptions {
+		if opt.CleanupDays <= 0 {
+			return fmt.Errorf("cleanup_days for %q must be positive; set enabled=false to keep data forever", opt.ResourceType)
+		}
+	}
+
 	jsonBytes, err := json.Marshal(policy)
 	if err != nil {
 		return fmt.Errorf("failed to marshal storage policy: %w", err)
@@ -925,6 +968,17 @@ func normalizeRetryPolicy(policy *RetryPolicy) {
 
 	if policy.AutoDisableChannel.Statuses == nil {
 		policy.AutoDisableChannel.Statuses = []AutoDisableChannelStatus{}
+	}
+
+	switch policy.UpstreamErrorPolicy.Mode {
+	case UpstreamErrorModePassthrough, UpstreamErrorModeHidden, UpstreamErrorModeCustom:
+	default:
+		policy.UpstreamErrorPolicy.Mode = defaultRetryPolicy.UpstreamErrorPolicy.Mode
+	}
+
+	if policy.UpstreamErrorPolicy.Mode == UpstreamErrorModeCustom &&
+		strings.TrimSpace(policy.UpstreamErrorPolicy.CustomMessage) == "" {
+		policy.UpstreamErrorPolicy.Mode = UpstreamErrorModeHidden
 	}
 }
 
@@ -1219,9 +1273,28 @@ func (s *SystemService) AutoBackupSettings(ctx context.Context) (*AutoBackupSett
 		return nil, fmt.Errorf("failed to get auto backup settings: %w", err)
 	}
 
-	var settings AutoBackupSettings
-	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+	var stored autoBackupSettingsJSON
+	if err := json.Unmarshal([]byte(value), &stored); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal auto backup settings: %w", err)
+	}
+
+	includeUsageStats := defaultAutoBackupSettings.IncludeUsageStats
+	if stored.IncludeUsageStats != nil {
+		includeUsageStats = *stored.IncludeUsageStats
+	}
+
+	settings := AutoBackupSettings{
+		Enabled:            stored.Enabled,
+		Frequency:          stored.Frequency,
+		DataStorageID:      stored.DataStorageID,
+		IncludeChannels:    stored.IncludeChannels,
+		IncludeModels:      stored.IncludeModels,
+		IncludeAPIKeys:     stored.IncludeAPIKeys,
+		IncludeModelPrices: stored.IncludeModelPrices,
+		IncludeUsageStats:  includeUsageStats,
+		RetentionDays:      stored.RetentionDays,
+		LastBackupAt:       stored.LastBackupAt,
+		LastBackupError:    stored.LastBackupError,
 	}
 
 	return &settings, nil

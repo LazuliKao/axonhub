@@ -35,6 +35,7 @@ import (
 	"github.com/looplj/axonhub/internal/objects"
 	"github.com/looplj/axonhub/internal/server/backup"
 	"github.com/looplj/axonhub/internal/server/biz"
+	"github.com/looplj/axonhub/internal/server/gc"
 	"github.com/looplj/axonhub/llm/httpclient"
 	"github.com/looplj/axonhub/llm/oauth"
 	"github.com/shopspring/decimal"
@@ -227,6 +228,7 @@ type ComplexityRoot struct {
 		IncludeChannels    func(childComplexity int) int
 		IncludeModelPrices func(childComplexity int) int
 		IncludeModels      func(childComplexity int) int
+		IncludeUsageStats  func(childComplexity int) int
 		LastBackupAt       func(childComplexity int) int
 		LastBackupError    func(childComplexity int) int
 		RetentionDays      func(childComplexity int) int
@@ -335,6 +337,7 @@ type ComplexityRoot struct {
 
 	ChannelEndpoint struct {
 		APIFormat func(childComplexity int) int
+		BaseURL   func(childComplexity int) int
 		Path      func(childComplexity int) int
 	}
 
@@ -682,6 +685,13 @@ type ComplexityRoot struct {
 		BucketName func(childComplexity int) int
 	}
 
+	GcCleanupPreviewItem struct {
+		CutoffTime     func(childComplexity int) int
+		EstimatedCount func(childComplexity int) int
+		ResourceType   func(childComplexity int) int
+		RetentionDays  func(childComplexity int) int
+	}
+
 	GetCacheDiagnosticsPayload struct {
 		Content  func(childComplexity int) int
 		FileName func(childComplexity int) int
@@ -911,7 +921,7 @@ type ComplexityRoot struct {
 		TestChannel                          func(childComplexity int, input TestChannelInput) int
 		TestChannelAPIKeys                   func(childComplexity int, channelID objects.GUID, modelID *string) int
 		TriggerAutoBackup                    func(childComplexity int) int
-		TriggerGcCleanup                     func(childComplexity int) int
+		TriggerGcCleanup                     func(childComplexity int, input gc.TriggerGcCleanupInput) int
 		UnlinkOIDCIdentity                   func(childComplexity int, id objects.GUID) int
 		UpdateAPIKey                         func(childComplexity int, id objects.GUID, input ent.UpdateAPIKeyInput) int
 		UpdateAPIKeyProfileTemplate          func(childComplexity int, id objects.GUID, input ent.UpdateAPIKeyProfileTemplateInput, profile *objects.APIKeyProfile) int
@@ -1225,6 +1235,7 @@ type ComplexityRoot struct {
 		OidcIdentities               func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.OIDCIdentityOrder, where *ent.OIDCIdentityWhereInput) int
 		OnboardingInfo               func(childComplexity int) int
 		PassThroughSettings          func(childComplexity int) int
+		PreviewGcCleanup             func(childComplexity int, input gc.TriggerGcCleanupInput) int
 		Projects                     func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.ProjectOrder, where *ent.ProjectWhereInput) int
 		PromptProtectionRules        func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.PromptProtectionRuleOrder, where *ent.PromptProtectionRuleWhereInput) int
 		Prompts                      func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.PromptOrder, where *ent.PromptWhereInput) int
@@ -1402,6 +1413,7 @@ type ComplexityRoot struct {
 		MaxChannelRetries       func(childComplexity int) int
 		MaxSingleChannelRetries func(childComplexity int) int
 		RetryDelayMs            func(childComplexity int) int
+		UpstreamErrorPolicy     func(childComplexity int) int
 	}
 
 	Role struct {
@@ -1740,6 +1752,11 @@ type ComplexityRoot struct {
 		Models  func(childComplexity int) int
 	}
 
+	UpstreamErrorPolicy struct {
+		CustomMessage func(childComplexity int) int
+		Mode          func(childComplexity int) int
+	}
+
 	UsageLog struct {
 		APIKeyID                           func(childComplexity int) int
 		Channel                            func(childComplexity int) int
@@ -2050,7 +2067,7 @@ type MutationResolver interface {
 	UpdateVideoStorageSettings(ctx context.Context, input biz.VideoStorageSettings) (bool, error)
 	UpdateQuotaEnforcementSettings(ctx context.Context, input UpdateQuotaEnforcementSettingsInput) (bool, error)
 	CheckProviderQuotas(ctx context.Context) (bool, error)
-	TriggerGcCleanup(ctx context.Context) (bool, error)
+	TriggerGcCleanup(ctx context.Context, input gc.TriggerGcCleanupInput) (bool, error)
 	SaveProxyPreset(ctx context.Context, input biz.ProxyPreset) (bool, error)
 	DeleteProxyPreset(ctx context.Context, url string) (bool, error)
 	UpdateUserAgentPassThroughSettings(ctx context.Context, input UpdateUserAgentPassThroughSettingsInput) (bool, error)
@@ -2155,6 +2172,7 @@ type QueryResolver interface {
 	AllScopes(ctx context.Context, level *string) ([]*ScopeInfo, error)
 	Me(ctx context.Context) (*objects.UserInfo, error)
 	MyProjects(ctx context.Context) ([]*ent.Project, error)
+	PreviewGcCleanup(ctx context.Context, input gc.TriggerGcCleanupInput) ([]*gc.GcCleanupPreviewItem, error)
 	SystemStatus(ctx context.Context) (*SystemStatus, error)
 	BrandSettings(ctx context.Context) (*BrandSettings, error)
 	StoragePolicy(ctx context.Context) (*biz.StoragePolicy, error)
@@ -2780,6 +2798,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AutoBackupSettings.IncludeModels(childComplexity), true
+	case "AutoBackupSettings.includeUsageStats":
+		if e.complexity.AutoBackupSettings.IncludeUsageStats == nil {
+			break
+		}
+
+		return e.complexity.AutoBackupSettings.IncludeUsageStats(childComplexity), true
 	case "AutoBackupSettings.lastBackupAt":
 		if e.complexity.AutoBackupSettings.LastBackupAt == nil {
 			break
@@ -3205,6 +3229,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ChannelEndpoint.APIFormat(childComplexity), true
+	case "ChannelEndpoint.baseURL":
+		if e.complexity.ChannelEndpoint.BaseURL == nil {
+			break
+		}
+
+		return e.complexity.ChannelEndpoint.BaseURL(childComplexity), true
 	case "ChannelEndpoint.path":
 		if e.complexity.ChannelEndpoint.Path == nil {
 			break
@@ -4469,6 +4499,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.GCS.BucketName(childComplexity), true
+
+	case "GcCleanupPreviewItem.cutoffTime":
+		if e.complexity.GcCleanupPreviewItem.CutoffTime == nil {
+			break
+		}
+
+		return e.complexity.GcCleanupPreviewItem.CutoffTime(childComplexity), true
+	case "GcCleanupPreviewItem.estimatedCount":
+		if e.complexity.GcCleanupPreviewItem.EstimatedCount == nil {
+			break
+		}
+
+		return e.complexity.GcCleanupPreviewItem.EstimatedCount(childComplexity), true
+	case "GcCleanupPreviewItem.resourceType":
+		if e.complexity.GcCleanupPreviewItem.ResourceType == nil {
+			break
+		}
+
+		return e.complexity.GcCleanupPreviewItem.ResourceType(childComplexity), true
+	case "GcCleanupPreviewItem.retentionDays":
+		if e.complexity.GcCleanupPreviewItem.RetentionDays == nil {
+			break
+		}
+
+		return e.complexity.GcCleanupPreviewItem.RetentionDays(childComplexity), true
 
 	case "GetCacheDiagnosticsPayload.content":
 		if e.complexity.GetCacheDiagnosticsPayload.Content == nil {
@@ -5770,7 +5825,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.complexity.Mutation.TriggerGcCleanup(childComplexity), true
+		args, err := ec.field_Mutation_triggerGcCleanup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.TriggerGcCleanup(childComplexity, args["input"].(gc.TriggerGcCleanupInput)), true
 	case "Mutation.unlinkOIDCIdentity":
 		if e.complexity.Mutation.UnlinkOIDCIdentity == nil {
 			break
@@ -7438,6 +7498,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.PassThroughSettings(childComplexity), true
+	case "Query.previewGcCleanup":
+		if e.complexity.Query.PreviewGcCleanup == nil {
+			break
+		}
+
+		args, err := ec.field_Query_previewGcCleanup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.PreviewGcCleanup(childComplexity, args["input"].(gc.TriggerGcCleanupInput)), true
 	case "Query.projects":
 		if e.complexity.Query.Projects == nil {
 			break
@@ -8350,6 +8421,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.RetryPolicy.RetryDelayMs(childComplexity), true
+	case "RetryPolicy.upstreamErrorPolicy":
+		if e.complexity.RetryPolicy.UpstreamErrorPolicy == nil {
+			break
+		}
+
+		return e.complexity.RetryPolicy.UpstreamErrorPolicy(childComplexity), true
 
 	case "Role.createdAt":
 		if e.complexity.Role.CreatedAt == nil {
@@ -9566,6 +9643,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.UnassociatedChannel.Models(childComplexity), true
 
+	case "UpstreamErrorPolicy.customMessage":
+		if e.complexity.UpstreamErrorPolicy.CustomMessage == nil {
+			break
+		}
+
+		return e.complexity.UpstreamErrorPolicy.CustomMessage(childComplexity), true
+	case "UpstreamErrorPolicy.mode":
+		if e.complexity.UpstreamErrorPolicy.Mode == nil {
+			break
+		}
+
+		return e.complexity.UpstreamErrorPolicy.Mode(childComplexity), true
+
 	case "UsageLog.apiKeyID":
 		if e.complexity.UsageLog.APIKeyID == nil {
 			break
@@ -10471,6 +10561,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputTraceOrder,
 		ec.unmarshalInputTraceWhereInput,
 		ec.unmarshalInputTransformOptionsInput,
+		ec.unmarshalInputTriggerGcCleanupInput,
 		ec.unmarshalInputUpdateAPIKeyInput,
 		ec.unmarshalInputUpdateAPIKeyProfileTemplateInput,
 		ec.unmarshalInputUpdateAPIKeyProfilesInput,
@@ -10508,6 +10599,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateUserAgentPassThroughSettingsInput,
 		ec.unmarshalInputUpdateUserInput,
 		ec.unmarshalInputUpdateVideoStorageSettingsInput,
+		ec.unmarshalInputUpstreamErrorPolicyInput,
 		ec.unmarshalInputUsageLogOrder,
 		ec.unmarshalInputUsageLogWhereInput,
 		ec.unmarshalInputUserOrder,
@@ -11640,6 +11732,17 @@ func (ec *executionContext) field_Mutation_testChannel_args(ctx context.Context,
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNTestChannelInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐTestChannelInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_triggerGcCleanup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNTriggerGcCleanupInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgcᚐTriggerGcCleanupInput)
 	if err != nil {
 		return nil, err
 	}
@@ -12960,6 +13063,17 @@ func (ec *executionContext) field_Query_oidcIdentities_args(ctx context.Context,
 		return nil, err
 	}
 	args["where"] = arg5
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_previewGcCleanup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNTriggerGcCleanupInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgcᚐTriggerGcCleanupInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -16451,6 +16565,35 @@ func (ec *executionContext) fieldContext_AutoBackupSettings_includeModelPrices(_
 	return fc, nil
 }
 
+func (ec *executionContext) _AutoBackupSettings_includeUsageStats(ctx context.Context, field graphql.CollectedField, obj *biz.AutoBackupSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutoBackupSettings_includeUsageStats,
+		func(ctx context.Context) (any, error) {
+			return obj.IncludeUsageStats, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutoBackupSettings_includeUsageStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutoBackupSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AutoBackupSettings_retentionDays(ctx context.Context, field graphql.CollectedField, obj *biz.AutoBackupSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17923,6 +18066,8 @@ func (ec *executionContext) fieldContext_Channel_endpoints(_ context.Context, fi
 				return ec.fieldContext_ChannelEndpoint_apiFormat(ctx, field)
 			case "path":
 				return ec.fieldContext_ChannelEndpoint_path(ctx, field)
+			case "baseURL":
+				return ec.fieldContext_ChannelEndpoint_baseURL(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ChannelEndpoint", field.Name)
 		},
@@ -18254,6 +18399,8 @@ func (ec *executionContext) fieldContext_Channel_defaultEndpoints(_ context.Cont
 				return ec.fieldContext_ChannelEndpoint_apiFormat(ctx, field)
 			case "path":
 				return ec.fieldContext_ChannelEndpoint_path(ctx, field)
+			case "baseURL":
+				return ec.fieldContext_ChannelEndpoint_baseURL(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ChannelEndpoint", field.Name)
 		},
@@ -18822,6 +18969,35 @@ func (ec *executionContext) _ChannelEndpoint_path(ctx context.Context, field gra
 }
 
 func (ec *executionContext) fieldContext_ChannelEndpoint_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChannelEndpoint",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ChannelEndpoint_baseURL(ctx context.Context, field graphql.CollectedField, obj *objects.ChannelEndpoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ChannelEndpoint_baseURL,
+		func(ctx context.Context) (any, error) {
+			return obj.BaseURL, nil
+		},
+		nil,
+		ec.marshalOString2string,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ChannelEndpoint_baseURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ChannelEndpoint",
 		Field:      field,
@@ -25311,6 +25487,122 @@ func (ec *executionContext) fieldContext_GCS_bucketName(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GcCleanupPreviewItem_resourceType(ctx context.Context, field graphql.CollectedField, obj *gc.GcCleanupPreviewItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GcCleanupPreviewItem_resourceType,
+		func(ctx context.Context) (any, error) {
+			return obj.ResourceType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GcCleanupPreviewItem_resourceType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GcCleanupPreviewItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GcCleanupPreviewItem_estimatedCount(ctx context.Context, field graphql.CollectedField, obj *gc.GcCleanupPreviewItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GcCleanupPreviewItem_estimatedCount,
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GcCleanupPreviewItem_estimatedCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GcCleanupPreviewItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GcCleanupPreviewItem_cutoffTime(ctx context.Context, field graphql.CollectedField, obj *gc.GcCleanupPreviewItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GcCleanupPreviewItem_cutoffTime,
+		func(ctx context.Context) (any, error) {
+			return obj.CutoffTime, nil
+		},
+		nil,
+		ec.marshalNTime2timeᚐTime,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GcCleanupPreviewItem_cutoffTime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GcCleanupPreviewItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GcCleanupPreviewItem_retentionDays(ctx context.Context, field graphql.CollectedField, obj *gc.GcCleanupPreviewItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_GcCleanupPreviewItem_retentionDays,
+		func(ctx context.Context) (any, error) {
+			return obj.RetentionDays, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_GcCleanupPreviewItem_retentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GcCleanupPreviewItem",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -32164,7 +32456,8 @@ func (ec *executionContext) _Mutation_triggerGcCleanup(ctx context.Context, fiel
 		field,
 		ec.fieldContext_Mutation_triggerGcCleanup,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Mutation().TriggerGcCleanup(ctx)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().TriggerGcCleanup(ctx, fc.Args["input"].(gc.TriggerGcCleanupInput))
 		},
 		nil,
 		ec.marshalNBoolean2bool,
@@ -32173,7 +32466,7 @@ func (ec *executionContext) _Mutation_triggerGcCleanup(ctx context.Context, fiel
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_triggerGcCleanup(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_triggerGcCleanup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -32182,6 +32475,17 @@ func (ec *executionContext) fieldContext_Mutation_triggerGcCleanup(_ context.Con
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_triggerGcCleanup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -40794,6 +41098,57 @@ func (ec *executionContext) fieldContext_Query_myProjects(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_previewGcCleanup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_previewGcCleanup,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().PreviewGcCleanup(ctx, fc.Args["input"].(gc.TriggerGcCleanupInput))
+		},
+		nil,
+		ec.marshalNGcCleanupPreviewItem2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgcᚐGcCleanupPreviewItemᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_previewGcCleanup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "resourceType":
+				return ec.fieldContext_GcCleanupPreviewItem_resourceType(ctx, field)
+			case "estimatedCount":
+				return ec.fieldContext_GcCleanupPreviewItem_estimatedCount(ctx, field)
+			case "cutoffTime":
+				return ec.fieldContext_GcCleanupPreviewItem_cutoffTime(ctx, field)
+			case "retentionDays":
+				return ec.fieldContext_GcCleanupPreviewItem_retentionDays(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GcCleanupPreviewItem", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_previewGcCleanup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_systemStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40941,6 +41296,8 @@ func (ec *executionContext) fieldContext_Query_retryPolicy(_ context.Context, fi
 				return ec.fieldContext_RetryPolicy_autoDisableChannel(ctx, field)
 			case "emptyResponseDetection":
 				return ec.fieldContext_RetryPolicy_emptyResponseDetection(ctx, field)
+			case "upstreamErrorPolicy":
+				return ec.fieldContext_RetryPolicy_upstreamErrorPolicy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type RetryPolicy", field.Name)
 		},
@@ -41686,6 +42043,8 @@ func (ec *executionContext) fieldContext_Query_autoBackupSettings(_ context.Cont
 				return ec.fieldContext_AutoBackupSettings_includeAPIKeys(ctx, field)
 			case "includeModelPrices":
 				return ec.fieldContext_AutoBackupSettings_includeModelPrices(ctx, field)
+			case "includeUsageStats":
+				return ec.fieldContext_AutoBackupSettings_includeUsageStats(ctx, field)
 			case "retentionDays":
 				return ec.fieldContext_AutoBackupSettings_retentionDays(ctx, field)
 			case "lastBackupAt":
@@ -45206,6 +45565,41 @@ func (ec *executionContext) fieldContext_RetryPolicy_emptyResponseDetection(_ co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RetryPolicy_upstreamErrorPolicy(ctx context.Context, field graphql.CollectedField, obj *biz.RetryPolicy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_RetryPolicy_upstreamErrorPolicy,
+		func(ctx context.Context) (any, error) {
+			return obj.UpstreamErrorPolicy, nil
+		},
+		nil,
+		ec.marshalNUpstreamErrorPolicy2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐUpstreamErrorPolicy,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_RetryPolicy_upstreamErrorPolicy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RetryPolicy",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "mode":
+				return ec.fieldContext_UpstreamErrorPolicy_mode(ctx, field)
+			case "customMessage":
+				return ec.fieldContext_UpstreamErrorPolicy_customMessage(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type UpstreamErrorPolicy", field.Name)
 		},
 	}
 	return fc, nil
@@ -51423,6 +51817,64 @@ func (ec *executionContext) _UnassociatedChannel_models(ctx context.Context, fie
 func (ec *executionContext) fieldContext_UnassociatedChannel_models(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "UnassociatedChannel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UpstreamErrorPolicy_mode(ctx context.Context, field graphql.CollectedField, obj *biz.UpstreamErrorPolicy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpstreamErrorPolicy_mode,
+		func(ctx context.Context) (any, error) {
+			return obj.Mode, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpstreamErrorPolicy_mode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpstreamErrorPolicy",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UpstreamErrorPolicy_customMessage(ctx context.Context, field graphql.CollectedField, obj *biz.UpstreamErrorPolicy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_UpstreamErrorPolicy_customMessage,
+		func(ctx context.Context) (any, error) {
+			return obj.CustomMessage, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_UpstreamErrorPolicy_customMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UpstreamErrorPolicy",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -58595,8 +59047,11 @@ func (ec *executionContext) unmarshalInputBackupOptionsInput(ctx context.Context
 	if _, present := asMap["includeModelPrices"]; !present {
 		asMap["includeModelPrices"] = true
 	}
+	if _, present := asMap["includeUsageStats"]; !present {
+		asMap["includeUsageStats"] = true
+	}
 
-	fieldsInOrder := [...]string{"includeChannels", "includeModelPrices", "includeModels", "includeAPIKeys"}
+	fieldsInOrder := [...]string{"includeChannels", "includeModelPrices", "includeModels", "includeAPIKeys", "includeUsageStats"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -58631,6 +59086,13 @@ func (ec *executionContext) unmarshalInputBackupOptionsInput(ctx context.Context
 				return it, err
 			}
 			it.IncludeAPIKeys = data
+		case "includeUsageStats":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeUsageStats"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeUsageStats = data
 		}
 	}
 
@@ -58912,7 +59374,7 @@ func (ec *executionContext) unmarshalInputChannelEndpointInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"apiFormat", "path"}
+	fieldsInOrder := [...]string{"apiFormat", "path", "baseURL"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -58933,6 +59395,13 @@ func (ec *executionContext) unmarshalInputChannelEndpointInput(ctx context.Conte
 				return it, err
 			}
 			it.Path = data
+		case "baseURL":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("baseURL"))
+			data, err := ec.unmarshalOString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BaseURL = data
 		}
 	}
 
@@ -73888,8 +74357,11 @@ func (ec *executionContext) unmarshalInputRestoreOptionsInput(ctx context.Contex
 	if _, present := asMap["includeModelPrices"]; !present {
 		asMap["includeModelPrices"] = true
 	}
+	if _, present := asMap["includeUsageStats"]; !present {
+		asMap["includeUsageStats"] = true
+	}
 
-	fieldsInOrder := [...]string{"includeChannels", "includeModelPrices", "includeModels", "includeAPIKeys", "channelConflictStrategy", "modelConflictStrategy", "modelPriceConflictStrategy", "apiKeyConflictStrategy"}
+	fieldsInOrder := [...]string{"includeChannels", "includeModelPrices", "includeModels", "includeAPIKeys", "includeUsageStats", "channelConflictStrategy", "modelConflictStrategy", "modelPriceConflictStrategy", "apiKeyConflictStrategy"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -73924,6 +74396,13 @@ func (ec *executionContext) unmarshalInputRestoreOptionsInput(ctx context.Contex
 				return it, err
 			}
 			it.IncludeAPIKeys = data
+		case "includeUsageStats":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeUsageStats"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeUsageStats = data
 		case "channelConflictStrategy":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelConflictStrategy"))
 			data, err := ec.unmarshalNBackupConflictStrategy2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbackupᚐConflictStrategy(ctx, v)
@@ -76256,6 +76735,40 @@ func (ec *executionContext) unmarshalInputTransformOptionsInput(ctx context.Cont
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputTriggerGcCleanupInput(ctx context.Context, obj any) (gc.TriggerGcCleanupInput, error) {
+	var it gc.TriggerGcCleanupInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"requestsCleanupDays", "usageLogsCleanupDays"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "requestsCleanupDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("requestsCleanupDays"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RequestsCleanupDays = data
+		case "usageLogsCleanupDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("usageLogsCleanupDays"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UsageLogsCleanupDays = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateAPIKeyInput(ctx context.Context, obj any) (ent.UpdateAPIKeyInput, error) {
 	var it ent.UpdateAPIKeyInput
 	asMap := map[string]any{}
@@ -76406,7 +76919,7 @@ func (ec *executionContext) unmarshalInputUpdateAutoBackupSettingsInput(ctx cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"enabled", "frequency", "dataStorageID", "includeChannels", "includeModels", "includeAPIKeys", "includeModelPrices", "retentionDays"}
+	fieldsInOrder := [...]string{"enabled", "frequency", "dataStorageID", "includeChannels", "includeModels", "includeAPIKeys", "includeModelPrices", "includeUsageStats", "retentionDays"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -76462,6 +76975,13 @@ func (ec *executionContext) unmarshalInputUpdateAutoBackupSettingsInput(ctx cont
 				return it, err
 			}
 			it.IncludeModelPrices = data
+		case "includeUsageStats":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeUsageStats"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeUsageStats = data
 		case "retentionDays":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("retentionDays"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -77813,7 +78333,7 @@ func (ec *executionContext) unmarshalInputUpdateRetryPolicyInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"maxChannelRetries", "maxSingleChannelRetries", "retryDelayMs", "loadBalancerStrategy", "enabled", "autoDisableChannel", "emptyResponseDetection"}
+	fieldsInOrder := [...]string{"maxChannelRetries", "maxSingleChannelRetries", "retryDelayMs", "loadBalancerStrategy", "enabled", "autoDisableChannel", "emptyResponseDetection", "upstreamErrorPolicy"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -77869,6 +78389,13 @@ func (ec *executionContext) unmarshalInputUpdateRetryPolicyInput(ctx context.Con
 				return it, err
 			}
 			it.EmptyResponseDetection = data
+		case "upstreamErrorPolicy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("upstreamErrorPolicy"))
+			data, err := ec.unmarshalOUpstreamErrorPolicyInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐUpstreamErrorPolicy(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UpstreamErrorPolicy = data
 		}
 	}
 
@@ -78676,6 +79203,40 @@ func (ec *executionContext) unmarshalInputUpdateVideoStorageSettingsInput(ctx co
 				return it, err
 			}
 			it.ScanLimit = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpstreamErrorPolicyInput(ctx context.Context, obj any) (biz.UpstreamErrorPolicy, error) {
+	var it biz.UpstreamErrorPolicy
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"mode", "customMessage"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "mode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mode"))
+			data, err := ec.unmarshalOString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Mode = data
+		case "customMessage":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("customMessage"))
+			data, err := ec.unmarshalOString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CustomMessage = data
 		}
 	}
 
@@ -83400,6 +83961,11 @@ func (ec *executionContext) _AutoBackupSettings(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "includeUsageStats":
+			out.Values[i] = ec._AutoBackupSettings_includeUsageStats(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "retentionDays":
 			out.Values[i] = ec._AutoBackupSettings_retentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -84524,6 +85090,8 @@ func (ec *executionContext) _ChannelEndpoint(ctx context.Context, sel ast.Select
 			}
 		case "path":
 			out.Values[i] = ec._ChannelEndpoint_path(ctx, field, obj)
+		case "baseURL":
+			out.Values[i] = ec._ChannelEndpoint_baseURL(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -87636,6 +88204,60 @@ func (ec *executionContext) _GCS(ctx context.Context, sel ast.SelectionSet, obj 
 			out.Values[i] = graphql.MarshalString("GCS")
 		case "bucketName":
 			out.Values[i] = ec._GCS_bucketName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var gcCleanupPreviewItemImplementors = []string{"GcCleanupPreviewItem"}
+
+func (ec *executionContext) _GcCleanupPreviewItem(ctx context.Context, sel ast.SelectionSet, obj *gc.GcCleanupPreviewItem) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gcCleanupPreviewItemImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GcCleanupPreviewItem")
+		case "resourceType":
+			out.Values[i] = ec._GcCleanupPreviewItem_resourceType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "estimatedCount":
+			out.Values[i] = ec._GcCleanupPreviewItem_estimatedCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cutoffTime":
+			out.Values[i] = ec._GcCleanupPreviewItem_cutoffTime(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "retentionDays":
+			out.Values[i] = ec._GcCleanupPreviewItem_retentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -93010,6 +93632,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "previewGcCleanup":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_previewGcCleanup(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "systemStatus":
 			field := field
 
@@ -95265,6 +95909,11 @@ func (ec *executionContext) _RetryPolicy(ctx context.Context, sel ast.SelectionS
 			}
 		case "emptyResponseDetection":
 			out.Values[i] = ec._RetryPolicy_emptyResponseDetection(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "upstreamErrorPolicy":
+			out.Values[i] = ec._RetryPolicy_upstreamErrorPolicy(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -98464,6 +99113,50 @@ func (ec *executionContext) _UnassociatedChannel(ctx context.Context, sel ast.Se
 			}
 		case "models":
 			out.Values[i] = ec._UnassociatedChannel_models(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var upstreamErrorPolicyImplementors = []string{"UpstreamErrorPolicy"}
+
+func (ec *executionContext) _UpstreamErrorPolicy(ctx context.Context, sel ast.SelectionSet, obj *biz.UpstreamErrorPolicy) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, upstreamErrorPolicyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UpstreamErrorPolicy")
+		case "mode":
+			out.Values[i] = ec._UpstreamErrorPolicy_mode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "customMessage":
+			out.Values[i] = ec._UpstreamErrorPolicy_customMessage(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -102993,6 +103686,60 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
+func (ec *executionContext) marshalNGcCleanupPreviewItem2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgcᚐGcCleanupPreviewItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*gc.GcCleanupPreviewItem) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNGcCleanupPreviewItem2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgcᚐGcCleanupPreviewItem(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNGcCleanupPreviewItem2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgcᚐGcCleanupPreviewItem(ctx context.Context, sel ast.SelectionSet, v *gc.GcCleanupPreviewItem) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GcCleanupPreviewItem(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNGetCacheDiagnosticsPayload2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐGetCacheDiagnosticsPayload(ctx context.Context, sel ast.SelectionSet, v GetCacheDiagnosticsPayload) graphql.Marshaler {
 	return ec._GetCacheDiagnosticsPayload(ctx, sel, &v)
 }
@@ -105849,6 +106596,11 @@ func (ec *executionContext) marshalNTriggerBackupPayload2ᚖgithubᚗcomᚋloopl
 	return ec._TriggerBackupPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNTriggerGcCleanupInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgcᚐTriggerGcCleanupInput(ctx context.Context, v any) (gc.TriggerGcCleanupInput, error) {
+	res, err := ec.unmarshalInputTriggerGcCleanupInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNUnassociatedChannel2ᚕᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐUnassociatedChannelᚄ(ctx context.Context, sel ast.SelectionSet, v []*biz.UnassociatedChannel) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -106057,6 +106809,10 @@ func (ec *executionContext) marshalNUpload2githubᚗcomᚋ99designsᚋgqlgenᚋg
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNUpstreamErrorPolicy2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐUpstreamErrorPolicy(ctx context.Context, sel ast.SelectionSet, v biz.UpstreamErrorPolicy) graphql.Marshaler {
+	return ec._UpstreamErrorPolicy(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNUsageLogConnection2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐUsageLogConnection(ctx context.Context, sel ast.SelectionSet, v ent.UsageLogConnection) graphql.Marshaler {
@@ -112276,6 +113032,11 @@ func (ec *executionContext) unmarshalOUpdateChannelModelAutoSyncSettingInput2git
 
 func (ec *executionContext) unmarshalOUpdateChannelProbeSettingInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐChannelProbeSetting(ctx context.Context, v any) (biz.ChannelProbeSetting, error) {
 	res, err := ec.unmarshalInputUpdateChannelProbeSettingInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOUpstreamErrorPolicyInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐUpstreamErrorPolicy(ctx context.Context, v any) (biz.UpstreamErrorPolicy, error) {
+	res, err := ec.unmarshalInputUpstreamErrorPolicyInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
