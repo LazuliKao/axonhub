@@ -408,6 +408,44 @@ function validateOAuthCredentials(type: string, apiKey: string | undefined, ctx:
   }
 }
 
+type GcpCredentialFields = {
+  region?: string;
+  projectID?: string;
+  jsonData?: string;
+} | null | undefined;
+
+function hasAnyGcpCredentials(gcp: GcpCredentialFields): boolean {
+  return !!(gcp?.region?.trim() || gcp?.projectID?.trim() || gcp?.jsonData?.trim());
+}
+
+function hasCompleteGcpCredentials(gcp: GcpCredentialFields): boolean {
+  return !!(gcp?.region?.trim() && gcp?.projectID?.trim() && gcp?.jsonData?.trim());
+}
+
+function validateRequiredGcpCredentials(gcp: GcpCredentialFields, ctx: z.RefinementCtx) {
+  if (!gcp?.region?.trim()) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'GCP Region is required',
+      path: ['credentials', 'gcp', 'region'],
+    });
+  }
+  if (!gcp?.projectID?.trim()) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'GCP Project ID is required',
+      path: ['credentials', 'gcp', 'projectID'],
+    });
+  }
+  if (!gcp?.jsonData?.trim()) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'GCP Service Account JSON is required',
+      path: ['credentials', 'gcp', 'jsonData'],
+    });
+  }
+}
+
 // Create Channel Input
 
 export const createChannelInputSchema = z
@@ -445,6 +483,8 @@ export const createChannelInputSchema = z
       data.type === 'codex' || data.type === 'claudecode' || data.type === 'antigravity' || data.type === 'github_copilot';
     const hasApiKey = data.credentials.apiKey && data.credentials.apiKey.trim().length > 0;
     const hasApiKeys = data.credentials.apiKeys && data.credentials.apiKeys.some((k) => k.trim().length > 0);
+    const hasAnyGcp = hasAnyGcpCredentials(data.credentials.gcp);
+    const hasCompleteGcp = hasCompleteGcpCredentials(data.credentials.gcp);
 
     // github_copilot requires credentials.apiKey (OAuth JSON with access_token)
     if (data.type === 'github_copilot' && !hasApiKey) {
@@ -456,7 +496,13 @@ export const createChannelInputSchema = z
     }
 
     // Validate that at least one credential type is provided
-    if (!hasApiKey && !hasApiKeys && data.type !== 'anthropic_aws' && data.type !== 'anthropic_gcp' && data.type !== 'gemini_vertex_openai') {
+    if (
+      !hasApiKey &&
+      !hasApiKeys &&
+      data.type !== 'anthropic_aws' &&
+      data.type !== 'anthropic_gcp' &&
+      !(data.type === 'gemini_vertex_openai' && hasCompleteGcp)
+    ) {
       ctx.addIssue({
         code: 'custom' as const,
         message: 'At least one API Key is required',
@@ -468,30 +514,9 @@ export const createChannelInputSchema = z
     if (isOAuthType && hasApiKey) {
       validateOAuthCredentials(data.type, data.credentials.apiKey, ctx);
     }
-    // 如果是 anthropic_gcp 或 gemini_vertex_openai 类型，GCP 字段必填（精确到字段级报错）
-    if (data.type === 'anthropic_gcp' || data.type === 'gemini_vertex_openai') {
-      const gcp = data.credentials?.gcp;
-      if (!gcp?.region) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'GCP Region is required',
-          path: ['credentials', 'gcp', 'region'],
-        });
-      }
-      if (!gcp?.projectID) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'GCP Project ID is required',
-          path: ['credentials', 'gcp', 'projectID'],
-        });
-      }
-      if (!gcp?.jsonData) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'GCP Service Account JSON is required',
-          path: ['credentials', 'gcp', 'jsonData'],
-        });
-      }
+    // GCP 字段：Anthropic GCP 固定必填；Gemini Vertex OpenAI 仅在开启 OAuth/GCP 或填写了任一 GCP 字段时必填。
+    if (data.type === 'anthropic_gcp' || (data.type === 'gemini_vertex_openai' && hasAnyGcp)) {
+      validateRequiredGcpCredentials(data.credentials?.gcp, ctx);
     }
   });
 export type CreateChannelInput = z.infer<typeof createChannelInputSchema>;
@@ -533,27 +558,20 @@ export const updateChannelInputSchema = z
   .superRefine((data, ctx) => {
     const effectiveType = data.type;
     const hasApiKey = data.credentials?.apiKey && data.credentials.apiKey.trim().length > 0;
+    const hasApiKeys = data.credentials?.apiKeys && data.credentials.apiKeys.some((k) => k.trim().length > 0);
+    const hasAnyGcp = hasAnyGcpCredentials(data.credentials?.gcp);
+    const hasCompleteGcp = hasCompleteGcpCredentials(data.credentials?.gcp);
 
     // For OAuth validation on updates: validate if type is OAuth, or if credentials.apiKey is provided
     // (which indicates OAuth credentials are being set)
     const isOAuthType =
       effectiveType === 'codex' || effectiveType === 'claudecode' || effectiveType === 'antigravity' || effectiveType === 'github_copilot';
 
-    // Derive type from parent context if not available
-    let derivedType = effectiveType;
-    if (!derivedType && hasApiKey) {
-      // Try to get type from parent context
-      const parent = ctx.parent;
-      if (parent && typeof parent === 'object' && 'type' in parent) {
-        derivedType = (parent as { type?: string }).type;
-      }
-    }
-
     // If we have an OAuth key but no type, check if it looks like Copilot credentials
     const isCopilotKey = hasApiKey && data.credentials?.apiKey?.trim().startsWith('{');
 
-    if (isOAuthType || derivedType === 'github_copilot' || isCopilotKey) {
-      if (isCopilotKey && !derivedType) {
+    if (isOAuthType || isCopilotKey) {
+      if (isCopilotKey && !effectiveType && data.credentials?.apiKey) {
         try {
           const parsed = JSON.parse(data.credentials.apiKey);
           if (!parsed.access_token) {
@@ -572,33 +590,22 @@ export const updateChannelInputSchema = z
         }
         return;
       }
-      validateOAuthCredentials(derivedType, data.credentials?.apiKey, ctx);
+      if (effectiveType) {
+        validateOAuthCredentials(effectiveType, data.credentials?.apiKey, ctx);
+      }
     }
 
-    // 如果是 anthropic_gcp 或 gemini_vertex_openai 类型且提供了 credentials，GCP 字段必填（字段级报错）
-    if ((data.type === 'anthropic_gcp' || data.type === 'gemini_vertex_openai') && data.credentials) {
-      const gcp = data.credentials.gcp;
-      if (!gcp?.region) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'GCP Region is required',
-          path: ['credentials', 'gcp', 'region'],
-        });
-      }
-      if (!gcp?.projectID) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'GCP Project ID is required',
-          path: ['credentials', 'gcp', 'projectID'],
-        });
-      }
-      if (!gcp?.jsonData) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'GCP Service Account JSON is required',
-          path: ['credentials', 'gcp', 'jsonData'],
-        });
-      }
+    // GCP 字段：Anthropic GCP 固定必填；Gemini Vertex OpenAI 仅在开启 OAuth/GCP 或填写了任一 GCP 字段时必填。
+    if ((data.type === 'anthropic_gcp' || (data.type === 'gemini_vertex_openai' && hasAnyGcp)) && data.credentials) {
+      validateRequiredGcpCredentials(data.credentials.gcp, ctx);
+    }
+
+    if (data.type === 'gemini_vertex_openai' && data.credentials && !hasApiKey && !hasApiKeys && !hasCompleteGcp) {
+      ctx.addIssue({
+        code: 'custom' as const,
+        message: 'At least one API Key is required',
+        path: ['credentials', 'apiKeys'],
+      });
     }
   });
 

@@ -198,9 +198,13 @@ function getNextDuplicateName(name: string, existingNames: Set<string>) {
 // Providers that are always OAuth (no third-party API key mode)
 const alwaysOAuthProviderKeys = ['antigravity', 'github_copilot'];
 
-function isOfficialCodexChannel(channel: { credentials?: { apiKey?: string } }): boolean {
+function getChannelApiKey(channel: { credentials?: { apiKey?: string | null } | null }): string {
+  return channel.credentials?.apiKey || '';
+}
+
+function isOfficialCodexChannel(channel: { credentials?: { apiKey?: string | null } | null }): boolean {
   try {
-    const apiKey = channel.credentials?.apiKey || '';
+    const apiKey = getChannelApiKey(channel);
     const json = JSON.parse(apiKey);
     return !!((json.access_token && json.refresh_token) || (json.tokens?.access_token && json.tokens?.refresh_token));
   } catch {
@@ -208,24 +212,14 @@ function isOfficialCodexChannel(channel: { credentials?: { apiKey?: string } }):
   }
 }
 
-function isCodexAuthJSONChannel(channel: { credentials?: { apiKey?: string } }): boolean {
-  try {
-    const apiKey = channel.credentials?.apiKey || '';
-    const json = JSON.parse(apiKey);
-    return !!(json.tokens?.access_token && json.tokens?.refresh_token);
-  } catch {
-    return false;
-  }
-}
-
-function isOfficialClaudeCodeChannel(channel: { credentials?: { apiKey?: string }; baseURL: string }): boolean {
-  const apiKey = channel.credentials?.apiKey || '';
+function isOfficialClaudeCodeChannel(channel: { credentials?: { apiKey?: string | null } | null; baseURL: string }): boolean {
+  const apiKey = getChannelApiKey(channel);
   const defaultURL = getDefaultBaseURL('claudecode');
   return apiKey.includes('sk-ant-oat') || apiKey.includes('sk-ant-api03') || channel.baseURL === defaultURL;
 }
 
-function extractCodexAuthJSONText(apiKey: string | undefined): string | undefined {
-  if (!apiKey) return apiKey;
+function extractCodexAuthJSONText(apiKey: string | null | undefined): string | undefined {
+  if (!apiKey) return undefined;
 
   try {
     const parsed = JSON.parse(apiKey);
@@ -278,8 +272,6 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const [authMode, setAuthMode] = useState<'official' | 'auth-json' | 'third-party'>('official');
   const [codexAuthJSONText, setCodexAuthJSONText] = useState('');
   const [patternError, setPatternError] = useState<string | null>(null);
-  const dialogContentRef = useRef<HTMLDivElement>(null);
-
   // Debounced search values for better performance
   const debouncedFetchedModelsSearch = useDebounce(fetchedModelsSearch, 300);
   const debouncedSupportedModelsSearch = useDebounce(supportedModelsSearch, 300);
@@ -376,6 +368,9 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     }
     return false;
   });
+  const [useGeminiVertexOAuth, setUseGeminiVertexOAuth] = useState(() => {
+    return initialRow?.type === 'gemini_vertex_openai' && !!initialRow.credentials?.gcp?.jsonData;
+  });
   const [useAnthropicAws, setUseAnthropicAws] = useState(() => {
     if (initialRow) {
       return initialRow.type === 'anthropic_aws';
@@ -397,6 +392,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     const apiFormat = CHANNEL_CONFIGS[initialRow.type as ChannelType]?.apiFormat || OPENAI_CHAT_COMPLETIONS;
     setSelectedApiFormat(apiFormat);
     setUseGeminiVertex(initialRow.type === 'gemini_vertex' || initialRow.type === 'gemini_vertex_openai');
+    setUseGeminiVertexOAuth(initialRow.type === 'gemini_vertex_openai' && !!initialRow.credentials?.gcp?.jsonData);
     setUseAnthropicAws(initialRow.type === 'anthropic_aws');
     setUseKimiCoding(initialRow.type === 'moonshot_coding');
 
@@ -422,6 +418,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   useEffect(() => {
     if (!open) {
       setShowApiKey(false);
+      setShowGcpJsonData(false);
       setShowApiKeysPanel(false);
       setApiKeysSearch('');
       setSelectedKeysToRemove(new Set());
@@ -621,7 +618,9 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
   const isClaudeCodeType = (selectedType || derivedChannelType) === 'claudecode';
   const isCopilotType = (selectedType || derivedChannelType) === 'github_copilot';
 
-
+  const showGeminiVertexOAuthControls =
+    selectedProvider === 'gemini' && selectedApiFormat === OPENAI_CHAT_COMPLETIONS && useGeminiVertex;
+  const showGeminiVertexGcpCredentials = showGeminiVertexOAuthControls && useGeminiVertexOAuth;
 
   // OAuth providers cannot have their provider/API format changed during edit.
   // Derived from currentRow credentials so it stays stable across re-renders
@@ -670,6 +669,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
       if (provider !== 'gemini') {
         setUseGeminiVertex(false);
+        setUseGeminiVertexOAuth(false);
       }
       if (provider !== 'anthropic') {
         setUseAnthropicAws(false);
@@ -749,9 +749,10 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
       setSelectedApiFormat(format);
 
-      // Reset vertex checkbox if not gemini/contents
-      if (format !== 'gemini/contents') {
+      // Reset vertex checkbox if the selected format cannot use Vertex AI.
+      if (format !== GEMINI_CONTENTS && !(selectedProvider === 'gemini' && format === OPENAI_CHAT_COMPLETIONS)) {
         setUseGeminiVertex(false);
+        setUseGeminiVertexOAuth(false);
       }
       // Reset anthropic/kimi checkboxes if not anthropic/messages
       if (format !== 'anthropic/messages') {
@@ -761,13 +762,15 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
       const channelTypeFromFormat = getChannelTypeForApiFormat(selectedProvider, format);
       const newChannelType =
-        format === 'gemini/contents' && useGeminiVertex
-          ? 'gemini_vertex'
-          : format === 'anthropic/messages' && useAnthropicAws
-            ? 'anthropic_aws'
-            : format === 'anthropic/messages' && useKimiCoding
-              ? 'moonshot_coding'
-              : channelTypeFromFormat;
+        selectedProvider === 'gemini' && format === OPENAI_CHAT_COMPLETIONS && useGeminiVertex
+          ? 'gemini_vertex_openai'
+          : format === GEMINI_CONTENTS && useGeminiVertex
+            ? 'gemini_vertex'
+            : format === ANTHROPIC_MESSAGES && useAnthropicAws
+              ? 'anthropic_aws'
+              : format === ANTHROPIC_MESSAGES && useKimiCoding
+                ? 'moonshot_coding'
+                : channelTypeFromFormat;
       if (newChannelType) {
         form.setValue('type', newChannelType);
 
@@ -789,6 +792,9 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
     (checked: boolean) => {
       if (isOAuthChannel) return;
       setUseGeminiVertex(checked);
+      if (!checked) {
+        setUseGeminiVertexOAuth(false);
+      }
 
       if (selectedProvider === 'gemini') {
         let newChannelType: ChannelType | null = null;
@@ -814,6 +820,20 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
       }
     },
     [selectedApiFormat, form, isDuplicate, isEdit, isOAuthChannel]
+  );
+
+  const handleGeminiVertexOAuthChange = useCallback(
+    (checked: boolean) => {
+      if (isOAuthChannel) return;
+      setUseGeminiVertexOAuth(checked);
+
+      if (!checked) {
+        form.setValue('credentials.gcp.region', '', { shouldDirty: true, shouldValidate: true });
+        form.setValue('credentials.gcp.projectID', '', { shouldDirty: true, shouldValidate: true });
+        form.setValue('credentials.gcp.jsonData', '', { shouldDirty: true, shouldValidate: true });
+      }
+    },
+    [form, isOAuthChannel]
   );
 
   const handleAnthropicAwsChange = useCallback(
@@ -1555,7 +1575,7 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                             {(selectedApiFormat === 'gemini/contents' ||
                               (selectedApiFormat === 'openai/chat_completions' &&
                                 selectedProvider === 'gemini')) && (
-                              <div className='mt-3'>
+                              <div className='mt-3 space-y-2'>
                                 <label
                                   className={`flex items-center gap-2 text-sm ${isOAuthChannel ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                                 >
@@ -1566,6 +1586,24 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                                   />
                                   <span>{t('channels.dialogs.fields.apiFormat.geminiVertex.label')}</span>
                                 </label>
+
+                                {showGeminiVertexOAuthControls && (
+                                  <div className='ml-6 space-y-1 rounded-md border p-3'>
+                                    <label
+                                      className={`flex items-center gap-2 text-sm ${isOAuthChannel ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                    >
+                                      <Checkbox
+                                        checked={useGeminiVertexOAuth}
+                                        onCheckedChange={(checked) => handleGeminiVertexOAuthChange(checked === true)}
+                                        disabled={!!isOAuthChannel}
+                                      />
+                                      <span>{t('channels.dialogs.fields.apiFormat.geminiVertexOAuth.label')}</span>
+                                    </label>
+                                    <p className='text-muted-foreground text-xs'>
+                                      {t('channels.dialogs.fields.apiFormat.geminiVertexOAuth.description')}
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {selectedApiFormat === 'anthropic/messages' && selectedProvider === 'anthropic' && (
@@ -1922,7 +1960,8 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
 
                       {(!(isCodexType || isClaudeCodeType || isCopilotType) || authMode === 'third-party') &&
                         selectedProvider !== 'antigravity' &&
-                        selectedType !== 'anthropic_gcp' && (
+                        selectedType !== 'anthropic_gcp' &&
+                        !showGeminiVertexGcpCredentials && (
                           <FormField
                             control={form.control}
                             name='credentials.apiKeys'
@@ -2057,6 +2096,99 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                             )}
                           />
                         )}
+
+                      {showGeminiVertexGcpCredentials && (
+                        <div className='space-y-4 rounded-md border p-4'>
+                          <div className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                            <div className='md:col-span-2' />
+                            <p className='text-muted-foreground text-xs md:col-span-6'>
+                              {t('channels.dialogs.fields.gcp.description')}
+                            </p>
+                          </div>
+
+                          <FormField
+                            control={form.control}
+                            name='credentials.gcp.region'
+                            render={({ field, fieldState }) => (
+                              <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                  {t('channels.dialogs.fields.gcp.region.label')}
+                                </FormLabel>
+                                <div className='space-y-1 md:col-span-6'>
+                                  <Input
+                                    placeholder={t('channels.dialogs.fields.gcp.region.placeholder')}
+                                    autoComplete='off'
+                                    aria-invalid={!!fieldState.error}
+                                    {...field}
+                                  />
+                                  <FormMessage />
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name='credentials.gcp.projectID'
+                            render={({ field, fieldState }) => (
+                              <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                  {t('channels.dialogs.fields.gcp.projectID.label')}
+                                </FormLabel>
+                                <div className='space-y-1 md:col-span-6'>
+                                  <Input
+                                    placeholder={t('channels.dialogs.fields.gcp.projectID.placeholder')}
+                                    autoComplete='off'
+                                    aria-invalid={!!fieldState.error}
+                                    {...field}
+                                  />
+                                  <FormMessage />
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name='credentials.gcp.jsonData'
+                            render={({ field, fieldState }) => (
+                              <FormItem className='grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-8'>
+                                <FormLabel className='pt-2 font-medium md:col-span-2 md:text-right'>
+                                  {t('channels.dialogs.fields.gcp.jsonData.label')}
+                                </FormLabel>
+                                <div className='space-y-1 md:col-span-6'>
+                                  <div className='relative'>
+                                    <Textarea
+                                      placeholder={t('channels.dialogs.fields.gcp.jsonData.placeholder')}
+                                      className='min-h-[120px] resize-y pr-10 font-mono text-sm'
+                                      autoComplete='off'
+                                      spellCheck={false}
+                                      aria-invalid={!!fieldState.error}
+                                      value={field.value && !showGcpJsonData ? '••••••••' : field.value || ''}
+                                      onChange={(e) => {
+                                        if (field.value && !showGcpJsonData) return;
+                                        field.onChange(e.target.value);
+                                      }}
+                                      onBlur={field.onBlur}
+                                      readOnly={!!field.value && !showGcpJsonData}
+                                    />
+                                    <Button
+                                      type='button'
+                                      variant='ghost'
+                                      size='sm'
+                                      className='absolute top-2 right-2 h-7 w-7 p-0'
+                                      onClick={() => setShowGcpJsonData((prev) => !prev)}
+                                    >
+                                      {showGcpJsonData ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                                    </Button>
+                                  </div>
+                                  <FormMessage />
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      )}
 
                       <FormField
                         control={form.control}
@@ -2585,8 +2717,8 @@ export function ChannelsActionDialog({ currentRow, duplicateFromRow, open, onOpe
                       const isLastKey = validKeys.length <= 1;
                       return validKeys
                       .filter((k) => {
-                        if (!apiKeysSearch.trim()) return true;
-                        const search = apiKeysSearch.trim().toLowerCase();
+                        if (!debouncedApiKeysSearch.trim()) return true;
+                        const search = debouncedApiKeysSearch.trim().toLowerCase();
                         return k.toLowerCase().includes(search) || k.slice(-4).toLowerCase().includes(search);
                       })
                       .map((key) => {
