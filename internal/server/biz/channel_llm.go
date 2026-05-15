@@ -315,6 +315,10 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel) (*Channel
 	//
 	// NOTE: "enabled" keys excludes keys that were explicitly disabled for this channel.
 	enabledKeys := c.Credentials.GetEnabledAPIKeys(c.DisabledAPIKeys)
+	hasCompleteGCP := c.Credentials.GCP != nil &&
+		strings.TrimSpace(c.Credentials.GCP.Region) != "" &&
+		strings.TrimSpace(c.Credentials.GCP.ProjectID) != "" &&
+		strings.TrimSpace(c.Credentials.GCP.JSONData) != ""
 
 	//nolint:exhaustive // Checked.
 	switch c.Type {
@@ -336,6 +340,10 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel) (*Channel
 		// These channel types don't use API keys:
 		// - anthropic_gcp uses GCP credentials JSON
 		// - *_fake are test-only
+	case channel.TypeGeminiVertexOpenai:
+		if !hasCompleteGCP && len(enabledKeys) == 0 {
+			return nil, fmt.Errorf("missing credentials: gcp credentials or api key required for channel %s", c.Name)
+		}
 	default:
 		if len(enabledKeys) == 0 {
 			return nil, fmt.Errorf("missing api key for channel %s", c.Name)
@@ -900,8 +908,19 @@ func (svc *ChannelService) buildChannelWithTransformer(c *ent.Channel) (*Channel
 
 		return ch, nil
 	case channel.TypeGeminiVertexOpenai:
-		if c.Credentials.GCP == nil {
-			return nil, errors.New("GCP credentials are required for gemini_vertex_openai channel")
+		if !hasCompleteGCP {
+			transformer, err := gemini.NewOutboundTransformerWithConfig(gemini.Config{
+				BaseURL:        c.BaseURL,
+				APIKeyProvider: getAPIKeyProvider(ch),
+				PlatformType:   gemini.PlatformVertex,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create gemini_vertex_openai api-key outbound transformer: %w", err)
+			}
+
+			ch.Outbound = transformer
+
+			return ch, nil
 		}
 
 		transformer, err := geminioai.NewVertexOutboundTransformer(geminioai.VertexConfig{
