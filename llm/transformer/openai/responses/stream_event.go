@@ -15,6 +15,7 @@ const (
 	StreamEventTypeResponseCompleted  StreamEventType = "response.completed"
 	StreamEventTypeResponseQueued     StreamEventType = "response.queued"
 	StreamEventTypeResponseFailed     StreamEventType = "response.failed"
+	StreamEventTypeResponseCancelled  StreamEventType = "response.cancelled"
 	StreamEventTypeResponseIncomplete StreamEventType = "response.incomplete"
 
 	// Output item events.
@@ -86,6 +87,7 @@ type StreamEvent struct {
 
 	// For function_call_arguments.done events
 	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 	CallID    string `json:"call_id,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
 

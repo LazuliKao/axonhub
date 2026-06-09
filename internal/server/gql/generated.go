@@ -228,6 +228,7 @@ type ComplexityRoot struct {
 		IncludeChannels    func(childComplexity int) int
 		IncludeModelPrices func(childComplexity int) int
 		IncludeModels      func(childComplexity int) int
+		IncludeRequestLogs func(childComplexity int) int
 		IncludeUsageStats  func(childComplexity int) int
 		LastBackupAt       func(childComplexity int) int
 		LastBackupError    func(childComplexity int) int
@@ -268,6 +269,7 @@ type ComplexityRoot struct {
 	BrandSettings struct {
 		BrandLogo func(childComplexity int) int
 		BrandName func(childComplexity int) int
+		Title     func(childComplexity int) int
 	}
 
 	BulkImportChannelsResult struct {
@@ -339,6 +341,7 @@ type ComplexityRoot struct {
 		APIFormat func(childComplexity int) int
 		BaseURL   func(childComplexity int) int
 		Path      func(childComplexity int) int
+		Transport func(childComplexity int) int
 	}
 
 	ChannelLimiterStats struct {
@@ -957,6 +960,7 @@ type ComplexityRoot struct {
 		UpdateQuotaEnforcementSettings       func(childComplexity int, input UpdateQuotaEnforcementSettingsInput) int
 		UpdateRetryPolicy                    func(childComplexity int, input biz.RetryPolicy) int
 		UpdateRole                           func(childComplexity int, id objects.GUID, input ent.UpdateRoleInput) int
+		UpdateSecuritySettings               func(childComplexity int, input UpdateSecuritySettingsInput) int
 		UpdateStoragePolicy                  func(childComplexity int, input biz.StoragePolicy) int
 		UpdateSystemChannelSettings          func(childComplexity int, input biz.SystemChannelSettings) int
 		UpdateSystemGeneralSettings          func(childComplexity int, input biz.SystemGeneralSettings) int
@@ -1259,6 +1263,7 @@ type ComplexityRoot struct {
 		Requests                     func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.RequestOrder, where *ent.RequestWhereInput) int
 		RetryPolicy                  func(childComplexity int) int
 		Roles                        func(childComplexity int, after *entgql.Cursor[int], first *int, before *entgql.Cursor[int], last *int, orderBy *ent.RoleOrder, where *ent.RoleWhereInput) int
+		SecuritySettings             func(childComplexity int) int
 		StoragePolicy                func(childComplexity int) int
 		SystemChannelSettings        func(childComplexity int) int
 		SystemGeneralSettings        func(childComplexity int) int
@@ -1462,6 +1467,10 @@ type ComplexityRoot struct {
 		Description func(childComplexity int) int
 		Levels      func(childComplexity int) int
 		Scope       func(childComplexity int) int
+	}
+
+	SecuritySettings struct {
+		BlockedIPs func(childComplexity int) int
 	}
 
 	Segment struct {
@@ -2076,6 +2085,7 @@ type MutationResolver interface {
 	UpdateSystemGeneralSettings(ctx context.Context, input biz.SystemGeneralSettings) (bool, error)
 	UpdateVideoStorageSettings(ctx context.Context, input biz.VideoStorageSettings) (bool, error)
 	UpdateQuotaEnforcementSettings(ctx context.Context, input UpdateQuotaEnforcementSettingsInput) (bool, error)
+	UpdateSecuritySettings(ctx context.Context, input UpdateSecuritySettingsInput) (bool, error)
 	CheckProviderQuotas(ctx context.Context) (bool, error)
 	TriggerGcCleanup(ctx context.Context, input gc.TriggerGcCleanupInput) (bool, error)
 	SaveProxyPreset(ctx context.Context, input biz.ProxyPreset) (bool, error)
@@ -2197,6 +2207,7 @@ type QueryResolver interface {
 	SystemGeneralSettings(ctx context.Context) (*biz.SystemGeneralSettings, error)
 	VideoStorageSettings(ctx context.Context) (*biz.VideoStorageSettings, error)
 	QuotaEnforcementSettings(ctx context.Context) (*biz.QuotaEnforcementSettings, error)
+	SecuritySettings(ctx context.Context) (*biz.SecuritySettings, error)
 	ProxyPresets(ctx context.Context) ([]*biz.ProxyPreset, error)
 	UserAgentPassThroughSettings(ctx context.Context) (*UserAgentPassThroughSettings, error)
 	PassThroughSettings(ctx context.Context) (*PassThroughSettings, error)
@@ -2808,6 +2819,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AutoBackupSettings.IncludeModels(childComplexity), true
+	case "AutoBackupSettings.includeRequestLogs":
+		if e.complexity.AutoBackupSettings.IncludeRequestLogs == nil {
+			break
+		}
+
+		return e.complexity.AutoBackupSettings.IncludeRequestLogs(childComplexity), true
 	case "AutoBackupSettings.includeUsageStats":
 		if e.complexity.AutoBackupSettings.IncludeUsageStats == nil {
 			break
@@ -2929,6 +2946,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.BrandSettings.BrandName(childComplexity), true
+	case "BrandSettings.title":
+		if e.complexity.BrandSettings.Title == nil {
+			break
+		}
+
+		return e.complexity.BrandSettings.Title(childComplexity), true
 
 	case "BulkImportChannelsResult.channels":
 		if e.complexity.BulkImportChannelsResult.Channels == nil {
@@ -3251,6 +3274,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ChannelEndpoint.Path(childComplexity), true
+	case "ChannelEndpoint.transport":
+		if e.complexity.ChannelEndpoint.Transport == nil {
+			break
+		}
+
+		return e.complexity.ChannelEndpoint.Transport(childComplexity), true
 
 	case "ChannelLimiterStats.capacity":
 		if e.complexity.ChannelLimiterStats.Capacity == nil {
@@ -6179,6 +6208,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UpdateRole(childComplexity, args["id"].(objects.GUID), args["input"].(ent.UpdateRoleInput)), true
+	case "Mutation.updateSecuritySettings":
+		if e.complexity.Mutation.UpdateSecuritySettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateSecuritySettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateSecuritySettings(childComplexity, args["input"].(UpdateSecuritySettingsInput)), true
 	case "Mutation.updateStoragePolicy":
 		if e.complexity.Mutation.UpdateStoragePolicy == nil {
 			break
@@ -7700,6 +7740,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Roles(childComplexity, args["after"].(*entgql.Cursor[int]), args["first"].(*int), args["before"].(*entgql.Cursor[int]), args["last"].(*int), args["orderBy"].(*ent.RoleOrder), args["where"].(*ent.RoleWhereInput)), true
+	case "Query.securitySettings":
+		if e.complexity.Query.SecuritySettings == nil {
+			break
+		}
+
+		return e.complexity.Query.SecuritySettings(childComplexity), true
 	case "Query.storagePolicy":
 		if e.complexity.Query.StoragePolicy == nil {
 			break
@@ -8616,6 +8662,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ScopeInfo.Scope(childComplexity), true
+
+	case "SecuritySettings.blockedIPs":
+		if e.complexity.SecuritySettings.BlockedIPs == nil {
+			break
+		}
+
+		return e.complexity.SecuritySettings.BlockedIPs(childComplexity), true
 
 	case "Segment.children":
 		if e.complexity.Segment.Children == nil {
@@ -10641,6 +10694,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputUpdateRequestInput,
 		ec.unmarshalInputUpdateRetryPolicyInput,
 		ec.unmarshalInputUpdateRoleInput,
+		ec.unmarshalInputUpdateSecuritySettingsInput,
 		ec.unmarshalInputUpdateStoragePolicyInput,
 		ec.unmarshalInputUpdateSystemChannelSettingsInput,
 		ec.unmarshalInputUpdateSystemGeneralSettingsInput,
@@ -12214,6 +12268,17 @@ func (ec *executionContext) field_Mutation_updateRole_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateSecuritySettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input", ec.unmarshalNUpdateSecuritySettingsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐUpdateSecuritySettingsInput)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -16658,6 +16723,35 @@ func (ec *executionContext) fieldContext_AutoBackupSettings_includeUsageStats(_ 
 	return fc, nil
 }
 
+func (ec *executionContext) _AutoBackupSettings_includeRequestLogs(ctx context.Context, field graphql.CollectedField, obj *biz.AutoBackupSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AutoBackupSettings_includeRequestLogs,
+		func(ctx context.Context) (any, error) {
+			return obj.IncludeRequestLogs, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AutoBackupSettings_includeRequestLogs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AutoBackupSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AutoBackupSettings_retentionDays(ctx context.Context, field graphql.CollectedField, obj *biz.AutoBackupSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17180,6 +17274,35 @@ func (ec *executionContext) _BrandSettings_brandLogo(ctx context.Context, field 
 }
 
 func (ec *executionContext) fieldContext_BrandSettings_brandLogo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BrandSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BrandSettings_title(ctx context.Context, field graphql.CollectedField, obj *BrandSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BrandSettings_title,
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BrandSettings_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "BrandSettings",
 		Field:      field,
@@ -18132,6 +18255,8 @@ func (ec *executionContext) fieldContext_Channel_endpoints(_ context.Context, fi
 				return ec.fieldContext_ChannelEndpoint_path(ctx, field)
 			case "baseURL":
 				return ec.fieldContext_ChannelEndpoint_baseURL(ctx, field)
+			case "transport":
+				return ec.fieldContext_ChannelEndpoint_transport(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ChannelEndpoint", field.Name)
 		},
@@ -18465,6 +18590,8 @@ func (ec *executionContext) fieldContext_Channel_defaultEndpoints(_ context.Cont
 				return ec.fieldContext_ChannelEndpoint_path(ctx, field)
 			case "baseURL":
 				return ec.fieldContext_ChannelEndpoint_baseURL(ctx, field)
+			case "transport":
+				return ec.fieldContext_ChannelEndpoint_transport(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ChannelEndpoint", field.Name)
 		},
@@ -19062,6 +19189,35 @@ func (ec *executionContext) _ChannelEndpoint_baseURL(ctx context.Context, field 
 }
 
 func (ec *executionContext) fieldContext_ChannelEndpoint_baseURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChannelEndpoint",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ChannelEndpoint_transport(ctx context.Context, field graphql.CollectedField, obj *objects.ChannelEndpoint) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ChannelEndpoint_transport,
+		func(ctx context.Context) (any, error) {
+			return obj.Transport, nil
+		},
+		nil,
+		ec.marshalOString2string,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_ChannelEndpoint_transport(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ChannelEndpoint",
 		Field:      field,
@@ -32666,6 +32822,47 @@ func (ec *executionContext) fieldContext_Mutation_updateQuotaEnforcementSettings
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_updateSecuritySettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateSecuritySettings,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().UpdateSecuritySettings(ctx, fc.Args["input"].(UpdateSecuritySettingsInput))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateSecuritySettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateSecuritySettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_checkProviderQuotas(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41456,6 +41653,8 @@ func (ec *executionContext) fieldContext_Query_brandSettings(_ context.Context, 
 				return ec.fieldContext_BrandSettings_brandName(ctx, field)
 			case "brandLogo":
 				return ec.fieldContext_BrandSettings_brandLogo(ctx, field)
+			case "title":
+				return ec.fieldContext_BrandSettings_title(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type BrandSettings", field.Name)
 		},
@@ -41923,6 +42122,39 @@ func (ec *executionContext) fieldContext_Query_quotaEnforcementSettings(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_securitySettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_securitySettings,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().SecuritySettings(ctx)
+		},
+		nil,
+		ec.marshalNSecuritySettings2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐSecuritySettings,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_securitySettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "blockedIPs":
+				return ec.fieldContext_SecuritySettings_blockedIPs(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SecuritySettings", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_proxyPresets(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -42295,6 +42527,8 @@ func (ec *executionContext) fieldContext_Query_autoBackupSettings(_ context.Cont
 				return ec.fieldContext_AutoBackupSettings_includeModelPrices(ctx, field)
 			case "includeUsageStats":
 				return ec.fieldContext_AutoBackupSettings_includeUsageStats(ctx, field)
+			case "includeRequestLogs":
+				return ec.fieldContext_AutoBackupSettings_includeRequestLogs(ctx, field)
 			case "retentionDays":
 				return ec.fieldContext_AutoBackupSettings_retentionDays(ctx, field)
 			case "lastBackupAt":
@@ -46622,6 +46856,35 @@ func (ec *executionContext) _ScopeInfo_levels(ctx context.Context, field graphql
 func (ec *executionContext) fieldContext_ScopeInfo_levels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ScopeInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SecuritySettings_blockedIPs(ctx context.Context, field graphql.CollectedField, obj *biz.SecuritySettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SecuritySettings_blockedIPs,
+		func(ctx context.Context) (any, error) {
+			return obj.BlockedIPs, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SecuritySettings_blockedIPs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SecuritySettings",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -59364,8 +59627,11 @@ func (ec *executionContext) unmarshalInputBackupOptionsInput(ctx context.Context
 	if _, present := asMap["includeUsageStats"]; !present {
 		asMap["includeUsageStats"] = true
 	}
+	if _, present := asMap["includeRequestLogs"]; !present {
+		asMap["includeRequestLogs"] = false
+	}
 
-	fieldsInOrder := [...]string{"includeChannels", "includeModelPrices", "includeModels", "includeAPIKeys", "includeUsageStats"}
+	fieldsInOrder := [...]string{"includeChannels", "includeModelPrices", "includeModels", "includeAPIKeys", "includeUsageStats", "includeRequestLogs"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -59407,6 +59673,13 @@ func (ec *executionContext) unmarshalInputBackupOptionsInput(ctx context.Context
 				return it, err
 			}
 			it.IncludeUsageStats = data
+		case "includeRequestLogs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeRequestLogs"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeRequestLogs = data
 		}
 	}
 
@@ -59688,7 +59961,7 @@ func (ec *executionContext) unmarshalInputChannelEndpointInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"apiFormat", "path", "baseURL"}
+	fieldsInOrder := [...]string{"apiFormat", "path", "baseURL", "transport"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -59716,6 +59989,13 @@ func (ec *executionContext) unmarshalInputChannelEndpointInput(ctx context.Conte
 				return it, err
 			}
 			it.BaseURL = data
+		case "transport":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("transport"))
+			data, err := ec.unmarshalOString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Transport = data
 		}
 	}
 
@@ -74715,8 +74995,11 @@ func (ec *executionContext) unmarshalInputRestoreOptionsInput(ctx context.Contex
 	if _, present := asMap["includeUsageStats"]; !present {
 		asMap["includeUsageStats"] = true
 	}
+	if _, present := asMap["includeRequestLogs"]; !present {
+		asMap["includeRequestLogs"] = false
+	}
 
-	fieldsInOrder := [...]string{"includeChannels", "includeModelPrices", "includeModels", "includeAPIKeys", "includeUsageStats", "channelConflictStrategy", "modelConflictStrategy", "modelPriceConflictStrategy", "apiKeyConflictStrategy"}
+	fieldsInOrder := [...]string{"includeChannels", "includeModelPrices", "includeModels", "includeAPIKeys", "includeUsageStats", "includeRequestLogs", "channelConflictStrategy", "modelConflictStrategy", "modelPriceConflictStrategy", "apiKeyConflictStrategy"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -74758,6 +75041,13 @@ func (ec *executionContext) unmarshalInputRestoreOptionsInput(ctx context.Contex
 				return it, err
 			}
 			it.IncludeUsageStats = data
+		case "includeRequestLogs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeRequestLogs"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeRequestLogs = data
 		case "channelConflictStrategy":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelConflictStrategy"))
 			data, err := ec.unmarshalNBackupConflictStrategy2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbackupᚐConflictStrategy(ctx, v)
@@ -77274,7 +77564,7 @@ func (ec *executionContext) unmarshalInputUpdateAutoBackupSettingsInput(ctx cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"enabled", "frequency", "dataStorageID", "includeChannels", "includeModels", "includeAPIKeys", "includeModelPrices", "includeUsageStats", "retentionDays"}
+	fieldsInOrder := [...]string{"enabled", "frequency", "dataStorageID", "includeChannels", "includeModels", "includeAPIKeys", "includeModelPrices", "includeUsageStats", "includeRequestLogs", "retentionDays"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -77337,6 +77627,13 @@ func (ec *executionContext) unmarshalInputUpdateAutoBackupSettingsInput(ctx cont
 				return it, err
 			}
 			it.IncludeUsageStats = data
+		case "includeRequestLogs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeRequestLogs"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeRequestLogs = data
 		case "retentionDays":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("retentionDays"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
@@ -77357,7 +77654,7 @@ func (ec *executionContext) unmarshalInputUpdateBrandSettingsInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"brandName", "brandLogo"}
+	fieldsInOrder := [...]string{"brandName", "brandLogo", "title"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -77378,6 +77675,13 @@ func (ec *executionContext) unmarshalInputUpdateBrandSettingsInput(ctx context.C
 				return it, err
 			}
 			it.BrandLogo = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
 		}
 	}
 
@@ -78846,6 +79150,33 @@ func (ec *executionContext) unmarshalInputUpdateRoleInput(ctx context.Context, o
 				return it, err
 			}
 			it.ClearProject = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUpdateSecuritySettingsInput(ctx context.Context, obj any) (UpdateSecuritySettingsInput, error) {
+	var it UpdateSecuritySettingsInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"blockedIPs"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "blockedIPs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("blockedIPs"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BlockedIPs = data
 		}
 	}
 
@@ -84335,6 +84666,11 @@ func (ec *executionContext) _AutoBackupSettings(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "includeRequestLogs":
+			out.Values[i] = ec._AutoBackupSettings_includeRequestLogs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "retentionDays":
 			out.Values[i] = ec._AutoBackupSettings_retentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -84642,6 +84978,8 @@ func (ec *executionContext) _BrandSettings(ctx context.Context, sel ast.Selectio
 			out.Values[i] = ec._BrandSettings_brandName(ctx, field, obj)
 		case "brandLogo":
 			out.Values[i] = ec._BrandSettings_brandLogo(ctx, field, obj)
+		case "title":
+			out.Values[i] = ec._BrandSettings_title(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -85461,6 +85799,8 @@ func (ec *executionContext) _ChannelEndpoint(ctx context.Context, sel ast.Select
 			out.Values[i] = ec._ChannelEndpoint_path(ctx, field, obj)
 		case "baseURL":
 			out.Values[i] = ec._ChannelEndpoint_baseURL(ctx, field, obj)
+		case "transport":
+			out.Values[i] = ec._ChannelEndpoint_transport(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -90475,6 +90815,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateSecuritySettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateSecuritySettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "checkProviderQuotas":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_checkProviderQuotas(ctx, field)
@@ -94381,6 +94728,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "securitySettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_securitySettings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "proxyPresets":
 			field := field
 
@@ -96795,6 +97164,45 @@ func (ec *executionContext) _ScopeInfo(ctx context.Context, sel ast.SelectionSet
 			}
 		case "levels":
 			out.Values[i] = ec._ScopeInfo_levels(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var securitySettingsImplementors = []string{"SecuritySettings"}
+
+func (ec *executionContext) _SecuritySettings(ctx context.Context, sel ast.SelectionSet, obj *biz.SecuritySettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, securitySettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SecuritySettings")
+		case "blockedIPs":
+			out.Values[i] = ec._SecuritySettings_blockedIPs(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -106471,6 +106879,20 @@ func (ec *executionContext) marshalNScopeInfo2ᚖgithubᚗcomᚋloopljᚋaxonhub
 	return ec._ScopeInfo(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSecuritySettings2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐSecuritySettings(ctx context.Context, sel ast.SelectionSet, v biz.SecuritySettings) graphql.Marshaler {
+	return ec._SecuritySettings(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSecuritySettings2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐSecuritySettings(ctx context.Context, sel ast.SelectionSet, v *biz.SecuritySettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SecuritySettings(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNSegment2ᚖgithubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋbizᚐSegment(ctx context.Context, sel ast.SelectionSet, v *biz.Segment) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -107251,6 +107673,11 @@ func (ec *executionContext) unmarshalNUpdateRetryPolicyInput2githubᚗcomᚋloop
 
 func (ec *executionContext) unmarshalNUpdateRoleInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋentᚐUpdateRoleInput(ctx context.Context, v any) (ent.UpdateRoleInput, error) {
 	res, err := ec.unmarshalInputUpdateRoleInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateSecuritySettingsInput2githubᚗcomᚋloopljᚋaxonhubᚋinternalᚋserverᚋgqlᚐUpdateSecuritySettingsInput(ctx context.Context, v any) (UpdateSecuritySettingsInput, error) {
+	res, err := ec.unmarshalInputUpdateSecuritySettingsInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

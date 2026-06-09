@@ -29,6 +29,10 @@ type streamAggregator struct {
 
 	// Usage
 	usage *Usage
+
+	// Terminal response details
+	responseError     *Error
+	incompleteDetails *ResponseIncompleteDetails
 }
 
 // aggregatedItem holds the accumulated state for an output item.
@@ -39,6 +43,7 @@ type aggregatedItem struct {
 	Role             string
 	CallID           string
 	Name             string
+	Namespace        string
 	Arguments        *strings.Builder
 	EncryptedContent *string
 
@@ -254,6 +259,7 @@ func (a *streamAggregator) processEvent(ev *StreamEvent) {
 			item.Role = ev.Item.Role
 			item.CallID = ev.Item.CallID
 			item.Name = ev.Item.Name
+			item.Namespace = ev.Item.Namespace
 			item.Arguments.WriteString(ev.Item.Arguments)
 			item.EncryptedContent = ev.Item.EncryptedContent
 			item.Input = ev.Item.Input
@@ -318,6 +324,10 @@ func (a *streamAggregator) processEvent(ev *StreamEvent) {
 			if item := a.getItemForEvent(ev.OutputIndex, ev.ItemID); item != nil {
 				if ev.Name != "" {
 					item.Name = ev.Name
+				}
+
+				if ev.Namespace != "" {
+					item.Namespace = ev.Namespace
 				}
 
 				if ev.Arguments != "" {
@@ -510,10 +520,53 @@ func (a *streamAggregator) processEvent(ev *StreamEvent) {
 		}
 
 	case StreamEventTypeResponseFailed:
-		a.status = "failed"
+		a.applyResponseSnapshot(ev.Response)
+		if ev.Response == nil || ev.Response.Status == nil {
+			a.status = "failed"
+		}
+
+	case StreamEventTypeResponseCancelled:
+		a.applyResponseSnapshot(ev.Response)
+		if ev.Response == nil || ev.Response.Status == nil {
+			a.status = "canceled"
+		}
 
 	case StreamEventTypeResponseIncomplete:
-		a.status = "incomplete"
+		a.applyResponseSnapshot(ev.Response)
+		if ev.Response == nil || ev.Response.Status == nil {
+			a.status = "incomplete"
+		}
+	}
+}
+
+func (a *streamAggregator) applyResponseSnapshot(response *Response) {
+	if response == nil {
+		return
+	}
+
+	if response.ID != "" {
+		a.responseID = response.ID
+	}
+	if response.Model != "" {
+		a.model = response.Model
+	}
+	if response.CreatedAt != 0 {
+		a.createdAt = response.CreatedAt
+	}
+	if response.PreviousResponseID != nil {
+		a.previousResponseID = response.PreviousResponseID
+	}
+	if response.Status != nil {
+		a.status = *response.Status
+	}
+	if response.Usage != nil {
+		a.usage = response.Usage
+	}
+	if response.Error != nil {
+		a.responseError = response.Error
+	}
+	if response.IncompleteDetails != nil {
+		a.incompleteDetails = response.IncompleteDetails
 	}
 }
 
@@ -568,6 +621,7 @@ func (a *streamAggregator) buildResponse() *Response {
 					Status:    lo.ToPtr(item.Status),
 					CallID:    item.CallID,
 					Name:      item.Name,
+					Namespace: item.Namespace,
 					Arguments: item.Arguments.String(),
 				})
 
@@ -643,5 +697,7 @@ func (a *streamAggregator) buildResponse() *Response {
 		Output:             output,
 		Usage:              a.usage,
 		PreviousResponseID: a.previousResponseID,
+		Error:              a.responseError,
+		IncompleteDetails:  a.incompleteDetails,
 	}
 }

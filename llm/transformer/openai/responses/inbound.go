@@ -60,7 +60,7 @@ func (t *InboundTransformer) TransformRequest(ctx context.Context, httpReq *http
 		return nil, fmt.Errorf("%w: model is required", transformer.ErrInvalidRequest)
 	}
 
-	return convertToLLMRequest(&req)
+	return convertToLLMRequest(&req, httpReq.Body)
 }
 
 // TransformResponse transforms llm.Response to OpenAI Responses API HTTP response.
@@ -166,7 +166,7 @@ func (t *InboundTransformer) TransformError(ctx context.Context, rawErr error) *
 }
 
 // convertToLLMRequest converts OpenAI Responses API Request to llm.Request.
-func convertToLLMRequest(req *Request) (*llm.Request, error) {
+func convertToLLMRequest(req *Request, rawBody ...[]byte) (*llm.Request, error) {
 	chatReq := &llm.Request{
 		Model:               req.Model,
 		Temperature:         req.Temperature,
@@ -295,6 +295,10 @@ func convertToLLMRequest(req *Request) (*llm.Request, error) {
 		chatReq.Verbosity = req.Text.Verbosity
 	}
 
+	if len(rawBody) > 0 {
+		attachOpenAIResponsesRequestExtensions(chatReq, req, rawBody[0])
+	}
+
 	return chatReq, nil
 }
 
@@ -417,6 +421,7 @@ func convertReasoningWithFollowing(items []Item, startIdx int) (*llm.Message, in
 				Type: "function",
 				Function: llm.FunctionCall{
 					Name:      nextItem.Name,
+					Namespace: nextItem.Namespace,
 					Arguments: nextItem.Arguments,
 				},
 			})
@@ -521,6 +526,7 @@ func convertItemToMessage(item *Item) (*llm.Message, error) {
 					Type: "function",
 					Function: llm.FunctionCall{
 						Name:      item.Name,
+						Namespace: item.Namespace,
 						Arguments: item.Arguments,
 					},
 				},
@@ -927,6 +933,7 @@ func convertToResponsesAPIResponse(chatResp *llm.Response) *Response {
 						Type:      "function_call",
 						CallID:    toolCall.ID,
 						Name:      toolCall.Function.Name,
+						Namespace: toolCall.Function.Namespace,
 						Arguments: toolCall.Function.Arguments,
 						Status:    lo.ToPtr("completed"),
 					})
